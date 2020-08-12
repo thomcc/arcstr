@@ -1,4 +1,4 @@
-use stark::ArcStr;
+use arcstr::ArcStr;
 
 #[test]
 fn test_various_partial_eq() {

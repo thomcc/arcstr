@@ -27,7 +27,7 @@ use alloc::string::String;
 ///  directly, for example:
 ///
 /// ```
-/// # use stark::ArcStr;
+/// # use arcstr::ArcStr;
 /// let s = ArcStr::from("something");
 /// // These go through `Deref`, so they work even though
 /// // there is no `ArcStr::len` or `ArcStr::eq_ignore_ascii_case` function
@@ -39,7 +39,7 @@ use alloc::string::String;
 /// For example:
 ///
 /// ```
-/// # use stark::ArcStr;
+/// # use arcstr::ArcStr;
 /// fn accepts_str(s: &str) {
 ///    # let _ = s;
 ///    // s...
@@ -49,7 +49,7 @@ use alloc::string::String;
 /// // This works even though `&test_str` is normally an `&ArcStr`
 /// accepts_str(&test_str);
 ///
-/// // Another
+/// // Of course, this works for functionality from the standard library as well.
 /// let test_but_loud = ArcStr::from("TEST");
 /// assert!(test_str.eq_ignore_ascii_case(&test_but_loud));
 /// ```
@@ -71,26 +71,65 @@ impl ArcStr {
     /// Note: This is an equivalent to our `Deref` implementation, but can be
     /// more readable than `&*s` in the cases where a manual invocation of
     /// `Deref` would be required.
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    /// let s = ArcStr::from("abc");
+    ///
+    /// ```
     #[inline]
     pub fn as_str(&self) -> &str {
         self
     }
 
-    /// Get the UTF-8 encoded data behind this string.
+    /// Extract a byte slice containing our data.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         let p = self.0.as_ptr();
         unsafe {
-            let len = (*p).len;
-            let data: *const [u8; 0] = &(*p).data;
-            core::slice::from_raw_parts(data as *const u8, len)
-
-            // let offset = (p as *const u8 as usize) - ((*p).data.as_ptr() as usize);
-            // debug_assert_eq!((p as *const u8).wrapping_add(offset), (*p).data.as_ptr());
-            // let data = (p as *const u8).add(offset);
-            // core::slice::from_raw_parts(data, len)
+            let len = ThinInner::get_len_flags(p).len();
+            let data = (p as *const u8).add(memoffset::offset_of!(ThinInner, data));
+            debug_assert_eq!(&(*p).data as *const [u8; 0] as usize, data as usize);
+            core::slice::from_raw_parts(data, len)
         }
     }
+
+    /// Return the raw pointer this `ArcStr` wraps, for advanced use cases.
+    ///
+    /// Note that in addition to the `NonNull` constraint expressed in the type
+    /// signature, we also guarantee the pointer has an alignment of at least 8
+    /// bytes, even on platforms where a lower alignment would be acceptable.
+    #[inline]
+    pub fn into_raw(self) -> NonNull<()> {
+        let p = self.0;
+        core::mem::forget(self);
+        p.cast()
+    }
+
+    /// The opposite version of [`Self::into_raw`]. Still intended only for
+    /// advanced use cases.
+    ///
+    /// # Safety
+    ///
+    /// This function must be used on a valid pointer returned from
+    /// `StrArc::into_raw`. Additionally, you must ensure that a given `StrArc`
+    /// instance is only dropped once.
+    #[inline]
+    pub unsafe fn from_raw(ptr: NonNull<()>) -> Self {
+        Self(ptr.cast())
+    }
+
+    // #[inline]
+    // pub(crate) unsafe fn raw_inc_ref(ptr: NonNull<()>) {
+    //     let s = Self::from_raw(ptr);
+    //     core::mem::forget(s.clone());
+    //     core::mem::forget(s);
+    // }
+
+    // #[inline]
+    // pub(crate) unsafe fn raw_dec_ref(ptr: NonNull<()>) {
+    //     let _ = Self::from_raw(ptr);
+    // }
 }
 
 impl Clone for ArcStr {
@@ -98,7 +137,10 @@ impl Clone for ArcStr {
     fn clone(&self) -> Self {
         let this = self.0.as_ptr();
         unsafe {
-            if (*this).nonstatic {
+            // debug_assert_eq!(memoffset::offset_of!(ThinInner, nonstatic), 0);
+            // let nonstatic_p = this as *const _ as *const bool;
+            let is_static = ThinInner::get_len_flags(this).is_static();
+            if !is_static {
                 // From libstd's impl:
                 //
                 // > Using a relaxed ordering is alright here, as knowledge of the
@@ -122,7 +164,7 @@ impl Drop for ArcStr {
     fn drop(&mut self) {
         let this = self.0.as_ptr();
         unsafe {
-            if !(*this).nonstatic {
+            if ThinInner::get_len_flags(this).is_static() {
                 return;
             }
             if (*this).strong.fetch_sub(1, Ordering::Release) == 1 {
@@ -156,8 +198,9 @@ impl Drop for ArcStr {
         }
     }
 }
-// Caveat on the `nonstatic` field: This indicates if we're located in static
-// data (as with empty string) or if we a normal arc-ed string.
+// Caveat on the `static`/`strong` fields: "is_static" indicates if we're
+// located in static data (as with empty string). is_static being false meanse
+// we are a normal arc-ed string.
 //
 // While `ArcStr` claims to hold a pointer to a `ThinInner`, for the static case
 // we actually are using a pointer to a `ThinInnerStatic`. These are the same
@@ -165,24 +208,47 @@ impl Drop for ArcStr {
 // need the static ones to not have any interior mutability, so that `const`s
 // can use them, and so that they may be stored in read-only memory.
 //
-// We do this using the `nonstatic` flag to indicate which case we're in, and
-// maintaining the invariant that if we're a `ThinInnerStatic` **we may never
-// access `.strong` in any way**.
+// We do this by keeping a flag in `len_flags` flag to indicate which case we're
+// in, and maintaining the invariant that if we're a `ThinInnerStatic` **we may
+// never access `.strong` in any way**.
 //
-// This is stricter than we need to achieve in order to appease miri at the
-// moment, but I'd like to appease it in the future too. That said, even in a
-// crazy case, it's very hard to imagine how this could fail to work in
-// practice.
-#[repr(C)]
+// This is more subtle than you might think, sinc AFAIK we're not legally
+// allowed to create an `&InnerRepr<AtomicUsize>` until we're 100% sure it's
+// nonstatic, and prior to determining it, we are forced to work from entirely
+// behind a raw pointer...
+#[repr(C, align(8))]
 struct InnerRepr<RcTy> {
+    len_flags: LenFlags,
     // kind of a misnomer since there are no weak refs rn.
     strong: RcTy,
-    // Note: if `nonstatic` is false, we are never allowed to look at `strong`!
-    nonstatic: bool,
-    len: usize,
     #[cfg(debug_assertions)]
     orig_layout: Layout,
     data: [u8; 0],
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+#[repr(transparent)]
+struct LenFlags(usize);
+
+impl LenFlags {
+    const EMPTY_STATIC: LenFlags = LenFlags(0);
+    #[inline]
+    const fn len(self) -> usize {
+        self.0 >> 1
+    }
+    #[inline]
+    const fn is_static(self) -> bool {
+        (self.0 & 1) == 0
+    }
+
+    #[inline]
+    fn from_len_static(l: usize, is_static: bool) -> Option<Self> {
+        l.checked_mul(2).map(|l| Self(l | (!is_static as usize)))
+    }
+    #[inline]
+    const fn from_len_static_raw(l: usize, is_static: bool) -> Self {
+        Self(l << 1 | (!is_static as usize))
+    }
 }
 
 type ThinInner = InnerRepr<AtomicUsize>;
@@ -190,10 +256,9 @@ type ThinInnerStatic = InnerRepr<usize>;
 const _: [(); size_of::<ThinInnerStatic>()] = [(); size_of::<ThinInner>()];
 const _: [(); align_of::<ThinInnerStatic>()] = [(); align_of::<ThinInner>()];
 
-const EMPTY_INNER: &'static ThinInnerStatic = &ThinInnerStatic {
+const EMPTY_INNER: &ThinInnerStatic = &ThinInnerStatic {
+    len_flags: LenFlags::EMPTY_STATIC,
     strong: 0usize,
-    nonstatic: false,
-    len: 0,
     #[cfg(debug_assertions)]
     orig_layout: Layout::new::<ThinInnerStatic>(),
     data: [],
@@ -224,9 +289,16 @@ impl ThinInner {
             }
 
             let ptr = alloced as *mut ThinInner;
+
+            // we actually already checked this above...
+            debug_assert_ne!(LenFlags::from_len_static(num_bytes, false), None);
+            let lf = LenFlags::from_len_static_raw(num_bytes, false);
+            debug_assert_eq!(lf.len(), num_bytes);
+            debug_assert_eq!(lf.is_static(), false);
+
+            core::ptr::write(&mut (*ptr).len_flags, lf);
             core::ptr::write(&mut (*ptr).strong, AtomicUsize::new(1));
-            core::ptr::write(&mut (*ptr).nonstatic, true);
-            core::ptr::write(&mut (*ptr).len, num_bytes);
+
             #[cfg(debug_assertions)]
             {
                 core::ptr::write(&mut (*ptr).orig_layout, layout);
@@ -242,11 +314,18 @@ impl ThinInner {
             NonNull::new_unchecked(ptr)
         }
     }
+    #[inline]
+    unsafe fn get_len_flags(p: *const ThinInner) -> LenFlags {
+        debug_assert_eq!(memoffset::offset_of!(ThinInner, len_flags), 0);
+        *p.cast()
+    }
 
     #[cold]
     unsafe fn destroy_cold(p: *mut ThinInner) {
-        debug_assert!((*p).nonstatic);
-        let len = (*p).len;
+        let lf = Self::get_len_flags(p);
+        debug_assert!(!lf.is_static());
+        // debug_assert!((*p).nonstatic);
+        let len = lf.len();
         let layout = {
             let size = len + memoffset::offset_of!(ThinInner, data);
             let align = align_of::<ThinInner>();
@@ -446,13 +525,10 @@ fn verify_type_pun_offsets() {
         memoffset::offset_of!(ThinInnerStatic, strong),
     );
     assert_eq!(
-        memoffset::offset_of!(ThinInner, nonstatic),
-        memoffset::offset_of!(ThinInnerStatic, nonstatic),
+        memoffset::offset_of!(ThinInner, len_flags),
+        memoffset::offset_of!(ThinInnerStatic, len_flags),
     );
-    assert_eq!(
-        memoffset::offset_of!(ThinInner, len),
-        memoffset::offset_of!(ThinInnerStatic, len),
-    );
+    assert_eq!(memoffset::offset_of!(ThinInner, len_flags), 0);
     assert_eq!(
         memoffset::offset_of!(ThinInner, data),
         memoffset::offset_of!(ThinInnerStatic, data),
