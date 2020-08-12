@@ -149,3 +149,35 @@ fn test_loose_ends() {
     assert_eq!(abc_str, "abc");
     assert_eq!(abc_bytes, b"abc");
 }
+
+#[test]
+fn test_from_into_raw() {
+    let a = vec![
+        ArcStr::default(),
+        ArcStr::from("1234"),
+        ArcStr::from(format!("test {}", 1)),
+    ];
+    let v = a.into_iter().cycle().take(100).collect::<Vec<ArcStr>>();
+    let v2 = v
+        .iter()
+        .map(|s| ArcStr::into_raw(s.clone()))
+        .collect::<Vec<_>>();
+    drop(v);
+    let back = v2
+        .iter()
+        .map(|s| unsafe { ArcStr::from_raw(*s) })
+        .collect::<Vec<_>>();
+
+    let end = [
+        ArcStr::default(),
+        ArcStr::from("1234"),
+        ArcStr::from(format!("test {}", 1)),
+    ]
+    .iter()
+    .cloned()
+    .cycle()
+    .take(100)
+    .collect::<Vec<_>>();
+    assert_eq!(back, end);
+    drop(back);
+}

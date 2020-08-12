@@ -20,8 +20,6 @@ use alloc::string::String;
 ///
 /// # Usage
 ///
-/// ## As a `str`
-///
 /// `ArcStr` implements `Deref<Target = str>`, and so all functions and methods
 ///  from `str` work on it, even though we don't expose them on `ArcStr`
 ///  directly, for example:
@@ -226,7 +224,7 @@ struct InnerRepr<RcTy> {
     data: [u8; 0],
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy)]
 #[repr(transparent)]
 struct LenFlags(usize);
 
@@ -291,7 +289,7 @@ impl ThinInner {
             let ptr = alloced as *mut ThinInner;
 
             // we actually already checked this above...
-            debug_assert_ne!(LenFlags::from_len_static(num_bytes, false), None);
+            debug_assert!(LenFlags::from_len_static(num_bytes, false).is_some());
             let lf = LenFlags::from_len_static_raw(num_bytes, false);
             debug_assert_eq!(lf.len(), num_bytes);
             debug_assert_eq!(lf.is_static(), false);
