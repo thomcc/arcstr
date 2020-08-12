@@ -1,0 +1,16 @@
+[package]
+name = "stark"
+version = "0.1.0"
+authors = ["Thom Chiovoloni <chiovolonit@gmail.com>"]
+edition = "2018"
+
+[features]
+std = []
+default = ["serde"]
+
+[dependencies]
+memoffset = "0.5"
+serde = { version = "1", default-features = false, optional = true }
+
+[dev-dependencies]
+serde_test = {version = "1", default-features=false}
