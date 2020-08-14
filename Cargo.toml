@@ -3,10 +3,15 @@ name = "arcstr"
 version = "0.1.0"
 authors = ["Thom Chiovoloni <chiovolonit@gmail.com>"]
 edition = "2018"
+description = "A better reference-counted string type"
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+keywords = ["arc", "refcount", "arc_str", "rc_str", "string", "const"]
+categories = ["concurrency", "memory-management", "data-structures", "no-std", "rust-patterns"]
 
 [features]
 std = []
-default = ["serde"]
+default = []
 
 [dependencies]
 memoffset = "0.5"

@@ -1,7 +1,8 @@
+# `arcstr`: A better reference-counted string type.
 
-A better reference-counted string type.
+Or, "types" hopefully — plural. The intent is for it to have a couple of those.
 
-Or, really the intent is for it to have a couple of those. It just has one at the moment: `ArcStr`, which has the following benefits over `Arc<str>`, and such:
+It just has one at the moment: `ArcStr`, which is the important one anyway, and has over `Arc<str>`.
 
 - Only a single pointer. Great for cases where you want to keep the data structure lightweight or need to do some FFI stuff with it or who knows.
 

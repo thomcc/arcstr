@@ -103,11 +103,12 @@ macro_rules! literal_arcstr {
     ($bytes:expr) => {{
         const LEN: usize = $bytes.len();
         const BYTES: &[u8; LEN] = $bytes;
-        const INNER: &$crate::private_::StaticArcStrInner<[u8; LEN]> = &$crate::private_::StaticArcStrInner {
-            len_flags: LEN << 1,
-            count: 0,
-            data: *BYTES,
-        };
+        const INNER: &$crate::private_::StaticArcStrInner<[u8; LEN]> =
+            &$crate::private_::StaticArcStrInner {
+                len_flags: LEN << 1,
+                count: 0,
+                data: *BYTES,
+            };
         $crate::ArcStr::new_static(INNER)
     }};
 }

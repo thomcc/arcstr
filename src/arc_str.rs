@@ -1,9 +1,7 @@
-
 use core::alloc::Layout;
 use core::mem::{align_of, size_of};
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize, Ordering};
-
 
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -438,8 +436,6 @@ const EMPTY_INNER: &ThinInnerStatic = &ThinInnerStatic {
     // orig_layout: Layout::new::<ThinInnerStatic>(),
     data: [],
 };
-
-
 
 const EMPTY: ArcStr =
     ArcStr(unsafe { NonNull::new_unchecked(EMPTY_INNER as *const _ as *mut ThinInner) });
