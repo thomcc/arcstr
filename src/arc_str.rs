@@ -720,7 +720,7 @@ impl<'a> From<&'a ArcStr> for Cow<'a, str> {
 impl<'a> From<ArcStr> for Cow<'a, str> {
     #[inline]
     fn from(s: ArcStr) -> Self {
-        if let Some(st) =  ArcStr::as_static(&s) {
+        if let Some(st) = ArcStr::as_static(&s) {
             Cow::Borrowed(st)
         } else {
             Cow::Owned(s.to_string())
