@@ -83,6 +83,8 @@ fn smoke_test_clone() {
     for _ in 0..count {
         drop(vec![ArcStr::from("foobar"); count]);
         drop(vec![ArcStr::from("baz quux"); count]);
+        let lit = unsafe { arcstr::literal_arcstr!(b"test 999") };
+        drop(vec![lit; count]);
     }
     drop(vec![ArcStr::default(); count]);
 }
@@ -180,4 +182,31 @@ fn test_from_into_raw() {
     .collect::<Vec<_>>();
     assert_eq!(back, end);
     drop(back);
+}
+
+#[test]
+fn test_strong_count() {
+    let foobar = ArcStr::from("foobar");
+    assert_eq!(Some(1), ArcStr::strong_count(&foobar));
+    let also_foobar = ArcStr::clone(&foobar);
+    assert_eq!(Some(2), ArcStr::strong_count(&foobar));
+    assert_eq!(Some(2), ArcStr::strong_count(&also_foobar));
+
+    let baz = unsafe { arcstr::literal_arcstr!(b"baz") };
+    assert_eq!(None, ArcStr::strong_count(&baz));
+    assert_eq!(None, ArcStr::strong_count(&ArcStr::default()));
+}
+
+#[test]
+fn test_ptr_eq() {
+    let foobar = ArcStr::from("foobar");
+    let same_foobar = foobar.clone();
+    let other_foobar = ArcStr::from("foobar");
+    assert!(ArcStr::ptr_eq(&foobar, &same_foobar));
+    assert!(!ArcStr::ptr_eq(&foobar, &other_foobar));
+
+    const YET_AGAIN_A_DIFFERENT_FOOBAR: ArcStr = unsafe { arcstr::literal_arcstr!(b"foobar") };
+    let strange_new_foobar = YET_AGAIN_A_DIFFERENT_FOOBAR.clone();
+    let wild_blue_foobar = strange_new_foobar.clone();
+    assert!(ArcStr::ptr_eq(&strange_new_foobar, &wild_blue_foobar));
 }
