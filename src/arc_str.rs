@@ -123,11 +123,58 @@ impl ArcStr {
     /// ```
     /// # use arcstr::ArcStr;
     /// let s = ArcStr::from("abc");
-    /// assert_eq!(s.as_str(), "abc")
+    /// assert_eq!(s.as_str(), "abc");
     /// ```
     #[inline]
     pub fn as_str(&self) -> &str {
         self
+    }
+
+    /// Returns the length of this `ArcStr` in bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    /// let a = ArcStr::from("foo");
+    /// assert_eq!(a.len(), 3);
+    /// ```
+    #[inline]
+    pub fn len(&self) -> usize {
+        unsafe { ThinInner::get_len_flags(self.0.as_ptr()).len() }
+    }
+
+    /// Returns true if this `ArcStr` is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    /// assert!(!ArcStr::from("foo").is_empty());
+    /// assert!(ArcStr::new().is_empty());
+    /// ```
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Convert us to a `std::string::String`.
+    ///
+    /// This is provided as an inherent method to avoid needing to route through
+    /// the `Display` machinery, but is equivalent to `ToString::to_string`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    /// let s = ArcStr::from("abc");
+    /// assert_eq!(s.to_string(), "abc");
+    /// ```
+    #[inline]
+    pub fn to_string(&self) -> String {
+        #[cfg(not(feature = "std"))]
+        use alloc::borrow::ToOwned;
+        self.as_str().to_owned()
     }
 
     /// Extract a byte slice containing the string's data.
@@ -278,6 +325,68 @@ impl ArcStr {
             None
         } else {
             unsafe { Some((*this).strong.load(Ordering::SeqCst)) }
+        }
+    }
+
+    /// Returns true if `this` is a "static" ArcStr. For example, if it was
+    /// created from a call to [`literal_arcstr!`][crate::literal_arcstr]),
+    /// returned by `ArcStr::new`, etc.
+    ///
+    /// Static `ArcStr`s can be converted to `&'static str` for free using
+    /// [`ArcStr::as_static`], without leaking memory — they're static constants
+    /// in the program (somwhere).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    /// const STATIC: ArcStr = unsafe { arcstr::literal_arcstr!(b"Electricity!") };
+    /// assert!(ArcStr::is_static(&STATIC));
+    ///
+    /// let still_static = unsafe { arcstr::literal_arcstr!(b"Shocking!") };
+    /// assert!(ArcStr::is_static(&still_static));
+    /// assert!(ArcStr::is_static(&still_static.clone()), "Cloned statics are still static");
+    ///
+    /// let nonstatic = ArcStr::from("Grounded...");
+    /// assert!(!ArcStr::is_static(&nonstatic));
+    /// ```
+    #[inline]
+    pub fn is_static(this: &Self) -> bool {
+        unsafe { ThinInner::get_len_flags(this.0.as_ptr()).is_static() }
+    }
+
+    /// Returns true if `this` is a "static" ArcStr. For example, if it was
+    /// created from a call to [`literal_arcstr!`][crate::literal_arcstr]),
+    /// returned by `ArcStr::new`, etc.
+    ///
+    /// Static `ArcStr`s can be converted to `&'static str` for free using
+    /// [`ArcStr::as_static`], without leaking memory — they're static constants
+    /// in the program (somwhere).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    /// const STATIC: ArcStr = unsafe { arcstr::literal_arcstr!(b"Electricity!") };
+    /// assert_eq!(ArcStr::as_static(&STATIC), Some("Electricity!"));
+    ///
+    /// // Note that they don't have to be consts, just made using `literal_arcstr!`:
+    /// let still_static = unsafe { arcstr::literal_arcstr!(b"Shocking!") };
+    /// assert_eq!(ArcStr::as_static(&still_static), Some("Shocking!"));
+    /// // Cloning a static still produces a static.
+    /// assert_eq!(ArcStr::as_static(&still_static.clone()), Some("Shocking!"));
+    ///
+    /// // But it won't work for strings from other sources.
+    /// let nonstatic = ArcStr::from("Grounded...");
+    /// assert_eq!(ArcStr::as_static(&nonstatic), None);
+    /// ```
+    #[inline]
+    pub fn as_static(this: &Self) -> Option<&'static str> {
+        if unsafe { ThinInner::get_len_flags(this.0.as_ptr()).is_static() } {
+            // We know static strings live forever, so they can have a static lifetime.
+            Some(unsafe { &*(this.as_str() as *const str) })
+        } else {
+            None
         }
     }
 
@@ -545,6 +654,90 @@ impl From<String> for ArcStr {
     #[inline]
     fn from(v: String) -> Self {
         v.as_str().into()
+    }
+}
+
+impl From<&mut str> for ArcStr {
+    #[inline]
+    fn from(s: &mut str) -> Self {
+        let s: &str = s;
+        Self::from(s)
+    }
+}
+
+impl From<Box<str>> for ArcStr {
+    #[inline]
+    fn from(s: Box<str>) -> Self {
+        Self::from(&s[..])
+    }
+}
+impl From<ArcStr> for Box<str> {
+    #[inline]
+    fn from(s: ArcStr) -> Self {
+        s.as_str().into()
+    }
+}
+impl From<ArcStr> for alloc::rc::Rc<str> {
+    #[inline]
+    fn from(s: ArcStr) -> Self {
+        s.as_str().into()
+    }
+}
+impl From<ArcStr> for alloc::sync::Arc<str> {
+    #[inline]
+    fn from(s: ArcStr) -> Self {
+        s.as_str().into()
+    }
+}
+impl From<alloc::rc::Rc<str>> for ArcStr {
+    #[inline]
+    fn from(s: alloc::rc::Rc<str>) -> Self {
+        let s: &str = &*s;
+        Self::from(s)
+    }
+}
+impl From<alloc::sync::Arc<str>> for ArcStr {
+    #[inline]
+    fn from(s: alloc::sync::Arc<str>) -> Self {
+        let s: &str = &*s;
+        Self::from(s)
+    }
+}
+impl<'a> From<Cow<'a, str>> for ArcStr {
+    #[inline]
+    fn from(s: Cow<'a, str>) -> Self {
+        let s: &str = &*s;
+        Self::from(s)
+    }
+}
+impl<'a> From<&'a ArcStr> for Cow<'a, str> {
+    #[inline]
+    fn from(s: &'a ArcStr) -> Self {
+        Cow::Borrowed(s)
+    }
+}
+
+impl<'a> From<ArcStr> for Cow<'a, str> {
+    #[inline]
+    fn from(s: ArcStr) -> Self {
+        if let Some(st) =  ArcStr::as_static(&s) {
+            Cow::Borrowed(st)
+        } else {
+            Cow::Owned(s.to_string())
+        }
+    }
+}
+
+impl From<&String> for ArcStr {
+    #[inline]
+    fn from(s: &String) -> Self {
+        Self::from(s.as_str())
+    }
+}
+impl From<&ArcStr> for ArcStr {
+    #[inline]
+    fn from(s: &ArcStr) -> Self {
+        s.clone()
     }
 }
 
