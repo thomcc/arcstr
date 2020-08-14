@@ -1,7 +1,7 @@
 # `arcstr`: A better reference-counted string type.
 
 [![Build Status](https://github.com/thomcc/arcstr/workflows/CI/badge.svg)](https://github.com/thomcc/arcstr/actions)
-[![codecov](https://codecov.io/gh/thomcc/arcstr/branch/master/graph/badge.svg)](https://codecov.io/gh/thomcc/arcstr)
+[![codecov](https://codecov.io/gh/thomcc/arcstr/branch/main/graph/badge.svg)](https://codecov.io/gh/thomcc/arcstr)
 [![Docs](https://docs.rs/arcstr/badge.svg)](https://docs.rs/arcstr)
 [![Latest Version](https://img.shields.io/crates/v/arcstr.svg)](https://crates.io/crates/arcstr)
 
