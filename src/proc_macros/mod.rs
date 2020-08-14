@@ -33,8 +33,6 @@ pub fn byte_lit(mut input: TokenStream) -> TokenStream {
             let value: &str = &s[1..(s.len() - 1)]; // string literal contents
             TT::Literal(Literal::byte_string(value.as_bytes())).into()
         }
-        (Some(invalid_tt), _) => {
-            compile_error("Expected a string literal", invalid_tt.span())
-        }
+        (Some(invalid_tt), _) => compile_error("Expected a string literal", invalid_tt.span()),
     }
 }

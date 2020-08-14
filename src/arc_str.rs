@@ -91,7 +91,7 @@ use alloc::string::String;
 ///
 /// ```
 /// # use arcstr::{ArcStr, literal};
-/// const WOW: ArcStr = unsafe { literal!("cool robot!") };
+/// const WOW: ArcStr = literal!("cool robot!");
 /// assert_eq!(WOW, "cool robot!");
 /// ```
 #[repr(transparent)]
@@ -268,7 +268,7 @@ impl ArcStr {
     /// assert!(ArcStr::ptr_eq(&foobar, &same_foobar));
     /// assert!(!ArcStr::ptr_eq(&foobar, &other_foobar));
     ///
-    /// const YET_AGAIN_A_DIFFERENT_FOOBAR: ArcStr = unsafe { arcstr::literal!("foobar") };
+    /// const YET_AGAIN_A_DIFFERENT_FOOBAR: ArcStr = arcstr::literal!("foobar");
     /// let strange_new_foobar = YET_AGAIN_A_DIFFERENT_FOOBAR.clone();
     /// let wild_blue_foobar = strange_new_foobar.clone();
     /// assert!(ArcStr::ptr_eq(&strange_new_foobar, &wild_blue_foobar));
@@ -316,7 +316,7 @@ impl ArcStr {
     /// ```
     /// # use arcstr::{ArcStr, literal};
     /// // Safety: This is safe because it consists of valid UTF-8.
-    /// let baz = unsafe { literal!("baz") };
+    /// let baz = literal!("baz");
     /// assert_eq!(None, ArcStr::strong_count(&baz));
     /// // Similarly:
     /// assert_eq!(None, ArcStr::strong_count(&ArcStr::default()));
@@ -343,10 +343,10 @@ impl ArcStr {
     ///
     /// ```
     /// # use arcstr::ArcStr;
-    /// const STATIC: ArcStr = unsafe { arcstr::literal!("Electricity!") };
+    /// const STATIC: ArcStr = arcstr::literal!("Electricity!");
     /// assert!(ArcStr::is_static(&STATIC));
     ///
-    /// let still_static = unsafe { arcstr::literal!("Shocking!") };
+    /// let still_static = arcstr::literal!("Shocking!");
     /// assert!(ArcStr::is_static(&still_static));
     /// assert!(ArcStr::is_static(&still_static.clone()), "Cloned statics are still static");
     ///
@@ -370,11 +370,11 @@ impl ArcStr {
     ///
     /// ```
     /// # use arcstr::ArcStr;
-    /// const STATIC: ArcStr = unsafe { arcstr::literal!("Electricity!") };
+    /// const STATIC: ArcStr = arcstr::literal!("Electricity!");
     /// assert_eq!(ArcStr::as_static(&STATIC), Some("Electricity!"));
     ///
     /// // Note that they don't have to be consts, just made using `literal!`:
-    /// let still_static = unsafe { arcstr::literal!("Shocking!") };
+    /// let still_static = arcstr::literal!("Shocking!");
     /// assert_eq!(ArcStr::as_static(&still_static), Some("Shocking!"));
     /// // Cloning a static still produces a static.
     /// assert_eq!(ArcStr::as_static(&still_static.clone()), Some("Shocking!"));
