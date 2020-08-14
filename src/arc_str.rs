@@ -1,7 +1,10 @@
 use core::alloc::Layout;
 use core::mem::{align_of, size_of};
 use core::ptr::NonNull;
-use core::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(not(all(loom, test)))]
+pub(crate) use core::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(all(loom, test))]
+pub(crate) use loom::sync::atomic::{AtomicUsize, Ordering};
 
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
@@ -793,6 +796,8 @@ impl_peq! {
     (ArcStr, String),
     (ArcStr, Cow<'a, str>),
     (ArcStr, Box<str>),
+    (ArcStr, alloc::sync::Arc<str>),
+    (ArcStr, alloc::rc::Rc<str>),
 }
 
 impl PartialOrd for ArcStr {
@@ -933,5 +938,61 @@ mod test {
         sasi_layout_check::<[u8; 1024]>();
         sasi_layout_check::<[u8; 4095]>();
         sasi_layout_check::<[u8; 4096]>();
+    }
+}
+
+#[cfg(all(test, loom))]
+mod loomtest {
+    use super::ArcStr;
+    use loom::sync::Arc;
+    use loom::thread;
+    #[test]
+    fn cloning_threads() {
+        loom::model(|| {
+            let a = ArcStr::from("abcdefgh");
+            let addr = a.as_ptr() as usize;
+
+            let a1 = Arc::new(a);
+            let a2 = a1.clone();
+
+            let t1 = thread::spawn(move || {
+                let b: ArcStr = (*a1).clone();
+                assert_eq!(b.as_ptr() as usize, addr);
+            });
+            let t2 = thread::spawn(move || {
+                let b: ArcStr = (*a2).clone();
+                assert_eq!(b.as_ptr() as usize, addr);
+            });
+
+            t1.join().unwrap();
+            t2.join().unwrap();
+        });
+    }
+    #[test]
+    fn drop_timing() {
+        loom::model(|| {
+            let a1 = (0..5)
+                .map(|i| ArcStr::from(format!("s{}", i)))
+                .cycle()
+                .take(10)
+                .collect::<Vec<_>>();
+            let a2 = a1.clone();
+
+            let t1 = thread::spawn(move || {
+                let mut a1 = a1;
+                while let Some(s) = a1.pop() {
+                    assert!(s.starts_with("s"));
+                }
+            });
+            let t2 = thread::spawn(move || {
+                let mut a2 = a2;
+                while let Some(s) = a2.pop() {
+                    assert!(s.starts_with("s"));
+                }
+            });
+
+            t1.join().unwrap();
+            t2.join().unwrap();
+        });
     }
 }

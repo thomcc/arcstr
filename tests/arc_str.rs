@@ -32,6 +32,8 @@ fn test_various_partial_eq() {
     check_partial_eq!(@eq; ArcStr::from("🏳️‍🌈"), String::from("🏳️‍🌈"));
     check_partial_eq!(@eq; ArcStr::from("🏳️‍⚧️"), std::borrow::Cow::Borrowed("🏳️‍⚧️"));
     check_partial_eq!(@eq; ArcStr::from("🏴‍☠️"), std::borrow::Cow::Owned("🏴‍☠️".into()));
+    check_partial_eq!(@eq; ArcStr::from(":o"), std::rc::Rc::<str>::from(":o"));
+    check_partial_eq!(@eq; ArcStr::from("!!!"), std::sync::Arc::<str>::from("!!!"));
 
     check_partial_eq!(@eq; ArcStr::from(""), "");
     check_partial_eq!(@eq; ArcStr::from(""), ArcStr::from(""));
@@ -45,6 +47,8 @@ fn test_various_partial_eq() {
 
     check_partial_eq!(@ne; ArcStr::from("butts"), std::borrow::Cow::Borrowed("boots"));
     check_partial_eq!(@ne; ArcStr::from("bots"), std::borrow::Cow::Owned("🤖".into()));
+    check_partial_eq!(@ne; ArcStr::from("put"), std::rc::Rc::<str>::from("⛳️"));
+    check_partial_eq!(@ne; ArcStr::from("pots"), std::sync::Arc::<str>::from("🍲"));
 }
 
 #[test]
@@ -236,6 +240,14 @@ fn test_statics() {
     // But it won't work for other strings.
     let nonstatic = ArcStr::from("Grounded...");
     assert_eq!(ArcStr::as_static(&nonstatic), None);
+}
+
+#[test]
+fn test_static_arcstr_include_bytes() {
+    const APACHE: ArcStr = unsafe { arcstr::literal_arcstr!(include_bytes!("../LICENSE-APACHE")) };
+    assert!(APACHE.len() > 10000);
+    assert!(APACHE.starts_with("                              Apache License"));
+    assert!(APACHE.ends_with("limitations under the License.\n"));
 }
 
 #[test]
