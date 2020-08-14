@@ -246,8 +246,8 @@ fn test_statics() {
 fn test_static_arcstr_include_bytes() {
     const APACHE: ArcStr = unsafe { arcstr::literal_arcstr!(include_bytes!("../LICENSE-APACHE")) };
     assert!(APACHE.len() > 10000);
-    assert!(APACHE.starts_with("                              Apache License"));
-    assert!(APACHE.ends_with("limitations under the License.\n"));
+    assert!(APACHE.trim_start().starts_with("Apache License"));
+    assert!(APACHE.trim_end().ends_with("limitations under the License."));
 }
 
 #[test]

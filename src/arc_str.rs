@@ -972,10 +972,10 @@ mod loomtest {
     fn drop_timing() {
         loom::model(|| {
             let a1 = (0..5)
-                .map(|i| ArcStr::from(format!("s{}", i)))
+                .map(|i| ArcStr::from(alloc::format!("s{}", i)))
                 .cycle()
                 .take(10)
-                .collect::<Vec<_>>();
+                .collect::<alloc::vec::Vec<_>>();
             let a2 = a1.clone();
 
             let t1 = thread::spawn(move || {
