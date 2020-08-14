@@ -87,7 +87,7 @@ fn smoke_test_clone() {
     for _ in 0..count {
         drop(vec![ArcStr::from("foobar"); count]);
         drop(vec![ArcStr::from("baz quux"); count]);
-        let lit = unsafe { arcstr::literal_arcstr!(b"test 999") };
+        let lit = { arcstr::literal_arcstr!("test 999") };
         drop(vec![lit; count]);
     }
     drop(vec![ArcStr::default(); count]);
@@ -196,7 +196,7 @@ fn test_strong_count() {
     assert_eq!(Some(2), ArcStr::strong_count(&foobar));
     assert_eq!(Some(2), ArcStr::strong_count(&also_foobar));
 
-    let baz = unsafe { arcstr::literal_arcstr!(b"baz") };
+    let baz = arcstr::literal_arcstr!("baz");
     assert_eq!(None, ArcStr::strong_count(&baz));
     assert_eq!(None, ArcStr::strong_count(&ArcStr::default()));
 }
@@ -209,14 +209,14 @@ fn test_ptr_eq() {
     assert!(ArcStr::ptr_eq(&foobar, &same_foobar));
     assert!(!ArcStr::ptr_eq(&foobar, &other_foobar));
 
-    const YET_AGAIN_A_DIFFERENT_FOOBAR: ArcStr = unsafe { arcstr::literal_arcstr!(b"foobar") };
+    const YET_AGAIN_A_DIFFERENT_FOOBAR: ArcStr = arcstr::literal_arcstr!("foobar");
     let strange_new_foobar = YET_AGAIN_A_DIFFERENT_FOOBAR.clone();
     let wild_blue_foobar = strange_new_foobar.clone();
     assert!(ArcStr::ptr_eq(&strange_new_foobar, &wild_blue_foobar));
 }
 #[test]
 fn test_statics() {
-    const STATIC: ArcStr = unsafe { arcstr::literal_arcstr!(b"Electricity!") };
+    const STATIC: ArcStr = arcstr::literal_arcstr!("Electricity!");
     assert!(ArcStr::is_static(&STATIC));
     assert_eq!(ArcStr::as_static(&STATIC), Some("Electricity!"));
 
@@ -224,7 +224,7 @@ fn test_statics() {
     assert_eq!(ArcStr::as_static(&ArcStr::new()), Some(""));
     let st = {
         // Note that they don't have to be consts, just made using `literal_arcstr!`:
-        let still_static = unsafe { arcstr::literal_arcstr!(b"Shocking!") };
+        let still_static = { arcstr::literal_arcstr!("Shocking!") };
         assert!(ArcStr::is_static(&still_static));
         assert_eq!(ArcStr::as_static(&still_static), Some("Shocking!"));
         assert_eq!(ArcStr::as_static(&still_static.clone()), Some("Shocking!"));
@@ -244,7 +244,7 @@ fn test_statics() {
 
 #[test]
 fn test_static_arcstr_include_bytes() {
-    const APACHE: ArcStr = unsafe { arcstr::literal_arcstr!(include_bytes!("../LICENSE-APACHE")) };
+    const APACHE: ArcStr = arcstr::literal_arcstr!(include_str!("../LICENSE-APACHE"));
     assert!(APACHE.len() > 10000);
     assert!(APACHE.trim_start().starts_with("Apache License"));
     assert!(APACHE
@@ -306,7 +306,7 @@ fn test_froms_more() {
     assert!(matches!(cow, Some(Cow::Owned(_))));
     assert_eq!(cow.as_deref(), Some("asdf"));
 
-    let st = unsafe { arcstr::literal_arcstr!(b"static should borrow") };
+    let st = { arcstr::literal_arcstr!("static should borrow") };
     {
         let cow: Option<Cow<'_, str>> = Some(st.clone()).map(Cow::from);
         assert!(matches!(cow, Some(Cow::Borrowed(_))));

@@ -84,11 +84,11 @@ pub use arc_str::ArcStr;
 /// // The argument must be a byte-string literal. E.g. `b"foo"`.
 /// // Not plain `"foo"`! Additionally, `unsafe` is required as we
 /// // cannot ensure the input is valid UTF-8.
-/// const MY_ARCSTR: ArcStr = unsafe { literal_arcstr!(b"testing testing") };
+/// const MY_ARCSTR: ArcStr = literal_arcstr!("testing testing");
 /// assert_eq!(MY_ARCSTR, "testing testing");
 ///
 /// // Or, just in normal expressions.
-/// assert_eq!("Wow!", unsafe { literal_arcstr!(b"Wow!") });
+/// assert_eq!("Wow!", literal_arcstr!("Wow!"));
 /// ```
 ///
 /// # Safety
@@ -100,16 +100,25 @@ pub use arc_str::ArcStr;
 /// contract. Dont' do it!
 #[macro_export]
 macro_rules! literal_arcstr {
-    ($bytes:expr) => {{
-        const LEN: usize = $bytes.len();
-        const BYTES: &[u8; LEN] = $bytes;
-        const INNER: &$crate::private_::StaticArcStrInner<[u8; LEN]> =
+    ($text:expr) => {{
+        const S: &str = $text;
+        const LEN: usize = S.len();
+        const INNER: &$crate::private_::StaticArcStrInner<[u8; LEN]> = {
+            let mut data = [0u8; LEN];
+            let mut i = 0;
+            let s = S.as_bytes();
+            loop {
+                if i >= LEN { break; }
+                data[i] = s[i];
+                i += 1;
+            }
             &$crate::private_::StaticArcStrInner {
                 len_flags: LEN << 1,
                 count: 0,
-                data: *BYTES,
-            };
-        $crate::ArcStr::new_static(INNER)
+                data,
+            }
+        };
+        unsafe { $crate::ArcStr::new_static(INNER) }
     }};
 }
 
@@ -118,3 +127,4 @@ macro_rules! literal_arcstr {
 pub mod private_ {
     pub use crate::arc_str::StaticArcStrInner;
 }
+
