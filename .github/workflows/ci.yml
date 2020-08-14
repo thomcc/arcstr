@@ -85,10 +85,10 @@ jobs:
         with:
           rust-version: nightly
           components: miri
-    - name: Run tests (all features)
-      run: cargo miri test --all-features
-    - name: Run tests
-      run: cargo miri test
+      - name: Run tests (all features)
+        run: cargo miri test --all-features
+      - name: Run tests
+        run: cargo miri test
 
   # Clippy is bothering me so I just used cargo check here...
   cargo-check:
