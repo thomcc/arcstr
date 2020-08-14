@@ -225,7 +225,10 @@ fn test_statics() {
         assert_eq!(ArcStr::as_static(&still_static), Some("Shocking!"));
         assert_eq!(ArcStr::as_static(&still_static.clone()), Some("Shocking!"));
         // clones are still static
-        assert_eq!(ArcStr::as_static(&still_static.clone().clone()), Some("Shocking!"));
+        assert_eq!(
+            ArcStr::as_static(&still_static.clone().clone()),
+            Some("Shocking!")
+        );
         ArcStr::as_static(&still_static).unwrap()
     };
     assert_eq!(st, "Shocking!");
@@ -262,7 +265,6 @@ fn test_froms_more() {
 
     let b: Option<Box<str>> = Some("abc".into());
     assert_eq!(b.map(ArcStr::from), Some(ArcStr::from("abc")));
-
 
     let b: Option<std::rc::Rc<str>> = Some("abc".into());
     assert_eq!(b.map(ArcStr::from), Some(ArcStr::from("abc")));
@@ -308,5 +310,4 @@ fn test_froms_more() {
     // Check non-statics
     let astr2 = ArcStr::from("foobar");
     assert!(ArcStr::ptr_eq(&astr2, &ArcStr::from(&astr2)))
-
 }
