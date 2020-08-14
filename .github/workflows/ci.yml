@@ -208,24 +208,33 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 1
-      - uses: actions-rs/toolchain@v1
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           override: true
-      - name: Run tests
-        env:
-          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
-          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
-          CARGO_INCREMENTAL: 0
-        run: |
-          cargo clean
-          cargo test --all-features
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          args: --all-features
+      # - uses: actions-rs/toolchain@v1
+      #   with:
+      #     toolchain: nightly
+      #     override: true
+      # - name: Run tests
+      #   env:
+      #     RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
+      #     RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
+      #     CARGO_INCREMENTAL: 0
+      #   run: |
+      #     cargo clean
+      #     cargo test --all-features
 
-      - name: Collect coverage with grcov
-        run: |
-          GRCOV_URL=https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2
-          curl -L "$GRCOV_URL" | tar jxf -
-          ./grcov ./target/debug -s . -t lcov --llvm --ignore-not-existing -o lcov.info
+      # - name: Collect coverage with grcov
+      #   run: |
+      #     GRCOV_URL=https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2
+      #     curl -L "$GRCOV_URL" | tar jxf -
+      #     ./grcov ./target/debug -s . -t lcov --llvm --ignore-not-existing -o lcov.info
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1
