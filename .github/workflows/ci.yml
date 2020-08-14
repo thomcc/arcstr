@@ -201,32 +201,32 @@ jobs:
           RUST_BACKTRACE: '0'
         run: cargo -Z build-std test --all-features --target=x86_64-unknown-linux-gnu
 
-  # codecov:
-  #   name: Generate code coverage
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #       with:
-  #         fetch-depth: 1
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: nightly
-  #         override: true
-  #     - name: Run tests
-  #       env:
-  #         RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
-  #         RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
-  #         CARGO_INCREMENTAL: 0
-  #       run: |
-  #         cargo clean
-  #         cargo test --all-features
+  codecov:
+    name: Generate code coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Run tests
+        env:
+          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
+          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
+          CARGO_INCREMENTAL: 0
+        run: |
+          cargo clean
+          cargo test --all-features
 
-  #     - name: Collect coverage with grcov
-  #       run: |
-  #         GRCOV_URL=https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2
-  #         curl -L "$GRCOV_URL" | tar jxf -
-  #         ./grcov ./target/debug -s . -t lcov --llvm --ignore-not-existing -o lcov.info
+      - name: Collect coverage with grcov
+        run: |
+          GRCOV_URL=https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2
+          curl -L "$GRCOV_URL" | tar jxf -
+          ./grcov ./target/debug -s . -t lcov --llvm --ignore-not-existing -o lcov.info
 
-  #     - name: Upload to codecov.io
-  #       uses: codecov/codecov-action@v1
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v1
 
