@@ -7,7 +7,7 @@
 //!   structure lightweight or need to do some FFI stuff with it.
 //!
 //! - It's possible to create a const `arcstr` from a literal via the
-//!   [`literal_arcstr!`][crate::literal_arcstr] macro.
+//!   [`literal!`][`crate::literal`] macro.
 //!
 //!   These are zero cost, take no heap allocation, and don't even need to
 //!   perform atomic reads/writes when being cloned or dropped (or at any other
@@ -49,12 +49,15 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
+
+extern crate proc_macros;
+
 mod arc_str;
 #[cfg(feature = "serde")]
 mod impl_serde;
 pub use arc_str::ArcStr;
 
-/// Create a const `ArcStr` from a (byte-string) literal. The resulting `ArcStr`
+/// Create a const `ArcStr` from a (string) literal. The resulting `ArcStr`
 /// require no heap allocation, can be freely cloned and used interchangeably
 /// with `ArcStr`s from the heap, and are effectively "free".
 ///
@@ -62,59 +65,43 @@ pub use arc_str::ArcStr;
 ///
 /// - First, it's a macro, not a `const fn`.
 ///
-/// - Second, a byte-string literal is required, and not a string literal. So
-///   instead of `literal_arcstr!("foo")` you must do `literal_arcstr!(b"foo")`.
-///
-/// - Third, this macro is `unsafe`, as not accepting a `&str` literal means we
-///   can't guarantee UTF-8 any longer.
+/// - Second, a string _literal_ is required, not just any expression evaluating
+///   to a `const` / build-time string. Thus, it does not support things such
+///   as `include_str!` or `concat!`.
 ///
 /// These drawbacks suck, but this functionality is insanely useful.
-///
-/// This is also why it's `arcstr::literal_arcstr!(...)` instead of a nicer
-/// `arcstr::literal!(...)`: I'm saving the better name for when the `unsafe` is
-/// no longer needed.
-///
-/// (P.S. please file an issue, PR, or contact me somehow if you know a way
-/// around this. Note that it's trickier than it might seem, though).
 ///
 /// # Usage
 ///
 /// ```
-/// # use arcstr::{ArcStr, literal_arcstr};
-/// // The argument must be a byte-string literal. E.g. `b"foo"`.
-/// // Not plain `"foo"`! Additionally, `unsafe` is required as we
-/// // cannot ensure the input is valid UTF-8.
-/// const MY_ARCSTR: ArcStr = unsafe { literal_arcstr!(b"testing testing") };
+/// # use arcstr::ArcStr;
+/// // The argument must be a string literal. E.g. `"foo"`.
+/// const MY_ARCSTR: ArcStr = arcstr::literal!("testing testing");
 /// assert_eq!(MY_ARCSTR, "testing testing");
 ///
 /// // Or, just in normal expressions.
-/// assert_eq!("Wow!", unsafe { literal_arcstr!(b"Wow!") });
+/// assert_eq!("Wow!", arcstr::literal!("Wow!"));
 /// ```
-///
-/// # Safety
-///
-/// The argument to this macro must be valid UTF-8.
-///
-/// Because this only accepts a byte-string literal, it is possible to provide
-/// invalid UTF-8 (e.g. `b"f\xff"`), which would be a violation of the safety
-/// contract. Dont' do it!
 #[macro_export]
-macro_rules! literal_arcstr {
-    ($bytes:expr) => {{
-        const LEN: usize = $bytes.len();
-        const BYTES: &[u8; LEN] = $bytes;
-        const INNER: &$crate::private_::StaticArcStrInner<[u8; LEN]> =
-            &$crate::private_::StaticArcStrInner {
-                len_flags: LEN << 1,
-                count: 0,
-                data: *BYTES,
-            };
-        $crate::ArcStr::new_static(INNER)
+macro_rules! literal {
+    ($str:literal) => {{
+        const _: &'static str = $str; // pre-check input
+        const LEN: usize = $str.len();
+        unsafe {
+            const INNER: $crate::private_::StaticArcStrInner<[u8; LEN]> =
+                $crate::private_::StaticArcStrInner {
+                    len_flags: LEN << 1,
+                    count: 0,
+                    data: *$crate::private_::byte_lit!($str),
+                };
+            $crate::ArcStr::new_static(&INNER)
+        }
     }};
 }
 
-// Not public API, exists for macros
+/// Not public API, exists for macros
 #[doc(hidden)]
 pub mod private_ {
     pub use crate::arc_str::StaticArcStrInner;
+    pub use crate::proc_macros::byte_lit;
 }

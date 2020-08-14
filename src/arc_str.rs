@@ -18,7 +18,7 @@ use alloc::string::String;
 ///   structure lightweight or need to do some FFI stuff with it.
 ///
 /// - It's possible to create a const `arcstr` from a literal via the
-///   [`literal_arcstr!`][crate::literal_arcstr] macro.
+///   [`literal!`][`crate::literal`] macro.
 ///
 ///   These are zero cost, take no heap allocation, and don't even need to
 ///   perform atomic reads/writes when being cloned or dropped (or at any other
@@ -86,12 +86,12 @@ use alloc::string::String;
 /// The big unique feature of `ArcStr`, aside from its charming personality, is
 /// the ability to create static/const `ArcStr`s. This is kind of annoying,
 /// since it requires unsafe, but the safety requirement is just UTF-8 validity
-/// of the provided byte string. (See [the macro](crate::literal_arcstr) docs
+/// of the provided byte string. (See [the macro](crate::literal) docs
 /// for details.
 ///
 /// ```
-/// # use arcstr::{ArcStr, literal_arcstr};
-/// const WOW: ArcStr = unsafe { literal_arcstr!(b"cool robot!") };
+/// # use arcstr::{ArcStr, literal};
+/// const WOW: ArcStr = unsafe { literal!("cool robot!") };
 /// assert_eq!(WOW, "cool robot!");
 /// ```
 #[repr(transparent)]
@@ -254,7 +254,7 @@ impl ArcStr {
     ///
     /// Caveat: `const`s aren't guaranteed to only occur in an executable a
     /// single time, and so this may be non-deterministic for `ArcStr` defined
-    /// in a `const` with [`literal_arcstr!`][crate::literal_arcstr], unless one
+    /// in a `const` with [`literal!`][crate::literal], unless one
     /// was created by a `clone()` on the other.
     ///
     /// # Examples
@@ -268,7 +268,7 @@ impl ArcStr {
     /// assert!(ArcStr::ptr_eq(&foobar, &same_foobar));
     /// assert!(!ArcStr::ptr_eq(&foobar, &other_foobar));
     ///
-    /// const YET_AGAIN_A_DIFFERENT_FOOBAR: ArcStr = unsafe { arcstr::literal_arcstr!(b"foobar") };
+    /// const YET_AGAIN_A_DIFFERENT_FOOBAR: ArcStr = unsafe { arcstr::literal!("foobar") };
     /// let strange_new_foobar = YET_AGAIN_A_DIFFERENT_FOOBAR.clone();
     /// let wild_blue_foobar = strange_new_foobar.clone();
     /// assert!(ArcStr::ptr_eq(&strange_new_foobar, &wild_blue_foobar));
@@ -280,7 +280,7 @@ impl ArcStr {
 
     /// Returns the number of references that exist to this `ArcStr`. If this is
     /// a static `ArcStr` (For example, one from
-    /// [`literal_arcstr!`][crate::literal_arcstr]), returns `None`.
+    /// [`literal!`][crate::literal]), returns `None`.
     ///
     /// Despite the difference in return type, this is named to match the method
     /// from the stdlib's Arc:
@@ -314,9 +314,9 @@ impl ArcStr {
     ///
     /// ### Static ArcStr
     /// ```
-    /// # use arcstr::{ArcStr, literal_arcstr};
+    /// # use arcstr::{ArcStr, literal};
     /// // Safety: This is safe because it consists of valid UTF-8.
-    /// let baz = unsafe { literal_arcstr!(b"baz") };
+    /// let baz = unsafe { literal!("baz") };
     /// assert_eq!(None, ArcStr::strong_count(&baz));
     /// // Similarly:
     /// assert_eq!(None, ArcStr::strong_count(&ArcStr::default()));
@@ -332,7 +332,7 @@ impl ArcStr {
     }
 
     /// Returns true if `this` is a "static" ArcStr. For example, if it was
-    /// created from a call to [`literal_arcstr!`][crate::literal_arcstr]),
+    /// created from a call to [`literal!`][crate::literal]),
     /// returned by `ArcStr::new`, etc.
     ///
     /// Static `ArcStr`s can be converted to `&'static str` for free using
@@ -343,10 +343,10 @@ impl ArcStr {
     ///
     /// ```
     /// # use arcstr::ArcStr;
-    /// const STATIC: ArcStr = unsafe { arcstr::literal_arcstr!(b"Electricity!") };
+    /// const STATIC: ArcStr = unsafe { arcstr::literal!("Electricity!") };
     /// assert!(ArcStr::is_static(&STATIC));
     ///
-    /// let still_static = unsafe { arcstr::literal_arcstr!(b"Shocking!") };
+    /// let still_static = unsafe { arcstr::literal!("Shocking!") };
     /// assert!(ArcStr::is_static(&still_static));
     /// assert!(ArcStr::is_static(&still_static.clone()), "Cloned statics are still static");
     ///
@@ -359,7 +359,7 @@ impl ArcStr {
     }
 
     /// Returns true if `this` is a "static" ArcStr. For example, if it was
-    /// created from a call to [`literal_arcstr!`][crate::literal_arcstr]),
+    /// created from a call to [`literal!`][crate::literal]),
     /// returned by `ArcStr::new`, etc.
     ///
     /// Static `ArcStr`s can be converted to `&'static str` for free using
@@ -370,11 +370,11 @@ impl ArcStr {
     ///
     /// ```
     /// # use arcstr::ArcStr;
-    /// const STATIC: ArcStr = unsafe { arcstr::literal_arcstr!(b"Electricity!") };
+    /// const STATIC: ArcStr = unsafe { arcstr::literal!("Electricity!") };
     /// assert_eq!(ArcStr::as_static(&STATIC), Some("Electricity!"));
     ///
-    /// // Note that they don't have to be consts, just made using `literal_arcstr!`:
-    /// let still_static = unsafe { arcstr::literal_arcstr!(b"Shocking!") };
+    /// // Note that they don't have to be consts, just made using `literal!`:
+    /// let still_static = unsafe { arcstr::literal!("Shocking!") };
     /// assert_eq!(ArcStr::as_static(&still_static), Some("Shocking!"));
     /// // Cloning a static still produces a static.
     /// assert_eq!(ArcStr::as_static(&still_static.clone()), Some("Shocking!"));
@@ -393,7 +393,7 @@ impl ArcStr {
         }
     }
 
-    // Not public API. Exists so the literal_arcstr macro can call it.
+    // Not public API. Exists so the literal macro can call it.
     #[inline]
     #[doc(hidden)]
     pub const unsafe fn new_static<B>(ptr: &'static StaticArcStrInner<B>) -> Self {

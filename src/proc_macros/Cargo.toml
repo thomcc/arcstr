@@ -1,7 +1,14 @@
+[lib]
+proc-macro = true
+path = "mod.rs"
+
 [package]
-name = "arcstr"
+name = "arcstr-proc_macros"
 version = "0.1.0"  # keep in sync with src/proc_macros/Cargo.toml
-authors = ["Thom Chiovoloni <chiovolonit@gmail.com>"]
+authors = [
+    "Thom Chiovoloni <chiovolonit@gmail.com>",
+    "Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com",
+]
 edition = "2018"
 description = "A better reference-counted string type"
 license = "Apache-2.0 OR MIT"
@@ -11,25 +18,3 @@ categories = ["concurrency", "memory-management", "data-structures", "no-std", "
 repository = "https://github.com/thomcc/arcstr"
 documentation = "https://docs.rs/arcstr"
 homepage = "https://github.com/thomcc/arcstr"
-
-[features]
-std = []
-default = []
-
-[dependencies]
-memoffset = "0.5"
-serde = { version = "1", default-features = false, optional = true }
-
-[dependencies.proc_macros]
-version = "0.1.0"
-path = "src/proc_macros"
-package = "arcstr-proc_macros"
-
-[dev-dependencies]
-serde_test = {version = "1", default-features=false}
-
-[target.'cfg(loom)'.dev-dependencies]
-loom = { version = "0.3" }
-
-[workspace]
-members = ["src/proc_macros"]
