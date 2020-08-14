@@ -210,3 +210,103 @@ fn test_ptr_eq() {
     let wild_blue_foobar = strange_new_foobar.clone();
     assert!(ArcStr::ptr_eq(&strange_new_foobar, &wild_blue_foobar));
 }
+#[test]
+fn test_statics() {
+    const STATIC: ArcStr = unsafe { arcstr::literal_arcstr!(b"Electricity!") };
+    assert!(ArcStr::is_static(&STATIC));
+    assert_eq!(ArcStr::as_static(&STATIC), Some("Electricity!"));
+
+    assert!(ArcStr::is_static(&ArcStr::new()));
+    assert_eq!(ArcStr::as_static(&ArcStr::new()), Some(""));
+    let st = {
+        // Note that they don't have to be consts, just made using `literal_arcstr!`:
+        let still_static = unsafe { arcstr::literal_arcstr!(b"Shocking!") };
+        assert!(ArcStr::is_static(&still_static));
+        assert_eq!(ArcStr::as_static(&still_static), Some("Shocking!"));
+        assert_eq!(ArcStr::as_static(&still_static.clone()), Some("Shocking!"));
+        // clones are still static
+        assert_eq!(ArcStr::as_static(&still_static.clone().clone()), Some("Shocking!"));
+        ArcStr::as_static(&still_static).unwrap()
+    };
+    assert_eq!(st, "Shocking!");
+
+    // But it won't work for other strings.
+    let nonstatic = ArcStr::from("Grounded...");
+    assert_eq!(ArcStr::as_static(&nonstatic), None);
+}
+
+#[test]
+fn test_inherent_overrides() {
+    let s = ArcStr::from("abc");
+    assert_eq!(s.as_str(), "abc");
+    let a = ArcStr::from("foo");
+    assert_eq!(a.len(), 3);
+    assert!(!ArcStr::from("foo").is_empty());
+    assert!(ArcStr::new().is_empty());
+}
+
+#[test]
+fn test_froms_more() {
+    let mut s = "asdf".to_string();
+    {
+        let s2: &mut str = &mut s;
+        // Make sure we go through the right From
+        let arc = <ArcStr as From<&mut str>>::from(s2);
+        assert_eq!(arc, "asdf");
+    }
+    let arc = <ArcStr as From<&String>>::from(&s);
+    assert_eq!(arc, "asdf");
+
+    // This is a slightly more natural way to check, as it's when the "you a
+    // weird From" situation comes up more often.
+
+    let b: Option<Box<str>> = Some("abc".into());
+    assert_eq!(b.map(ArcStr::from), Some(ArcStr::from("abc")));
+
+
+    let b: Option<std::rc::Rc<str>> = Some("abc".into());
+    assert_eq!(b.map(ArcStr::from), Some(ArcStr::from("abc")));
+
+    let b: Option<std::sync::Arc<str>> = Some("abc".into());
+    assert_eq!(b.map(ArcStr::from), Some(ArcStr::from("abc")));
+
+    let bs: Box<str> = ArcStr::from("123").into();
+    assert_eq!(&bs[..], "123");
+    let rcs: std::rc::Rc<str> = ArcStr::from("123").into();
+    assert_eq!(&rcs[..], "123");
+    let arcs: std::sync::Arc<str> = ArcStr::from("123").into();
+    assert_eq!(&arcs[..], "123");
+    use std::borrow::Cow::{self, Borrowed, Owned};
+    let cow: Cow<'_, str> = Borrowed("abcd");
+    assert_eq!(ArcStr::from(cow), "abcd");
+
+    let cow: Cow<'_, str> = Owned("abcd".into());
+    assert_eq!(ArcStr::from(cow), "abcd");
+
+    let cow: Option<Cow<'_, str>> = Some(&arc).map(Cow::from);
+    assert_eq!(cow.as_deref(), Some("asdf"));
+
+    let cow: Option<Cow<'_, str>> = Some(arc).map(Cow::from);
+    assert!(matches!(cow, Some(Cow::Owned(_))));
+    assert_eq!(cow.as_deref(), Some("asdf"));
+
+    let st = unsafe { arcstr::literal_arcstr!(b"static should borrow") };
+    {
+        let cow: Option<Cow<'_, str>> = Some(st.clone()).map(Cow::from);
+        assert!(matches!(cow, Some(Cow::Borrowed(_))));
+        assert_eq!(cow.as_deref(), Some("static should borrow"));
+    }
+    // works with any lifetime
+    {
+        let cow: Option<Cow<'static, str>> = Some(st.clone()).map(Cow::from);
+        assert!(matches!(cow, Some(Cow::Borrowed(_))));
+        assert_eq!(cow.as_deref(), Some("static should borrow"));
+    }
+
+    let astr = ArcStr::from(&st);
+    assert!(ArcStr::ptr_eq(&st, &astr));
+    // Check non-statics
+    let astr2 = ArcStr::from("foobar");
+    assert!(ArcStr::ptr_eq(&astr2, &ArcStr::from(&astr2)))
+
+}
