@@ -8,6 +8,9 @@ license = "Apache-2.0 OR MIT"
 readme = "README.md"
 keywords = ["arc", "refcount", "arc_str", "rc_str", "string", "const"]
 categories = ["concurrency", "memory-management", "data-structures", "no-std", "rust-patterns"]
+repository = "https://github.com/thomcc/arcstr"
+documentation = "https://docs.rs/arcstr"
+homepage = "https://github.com/thomcc/arcstr"
 
 [features]
 std = []

@@ -1,5 +1,10 @@
 # `arcstr`: A better reference-counted string type.
 
+[![Build Status](https://github.com/thomcc/arcstr/workflows/CI/badge.svg)](https://github.com/thomcc/arcstr/actions)
+[![codecov](https://codecov.io/gh/thomcc/arcstr/branch/master/graph/badge.svg)](https://codecov.io/gh/thomcc/arcstr)
+[![Docs](https://docs.rs/arcstr/badge.svg)](https://docs.rs/arcstr)
+[![Latest Version](https://img.shields.io/crates/v/arcstr.svg)](https://crates.io/crates/arcstr)
+
 Or, "types" hopefully — plural. The intent is for it to have a couple of those.
 
 It just has one at the moment: `ArcStr`, which is the important one anyway, and has over `Arc<str>`.
@@ -19,6 +24,8 @@ It just has one at the moment: `ArcStr`, which is the important one anyway, and 
 - More implementations of various traits like `PartialEq<Other>` and friends than `Arc<str>` has AFAIK. That is, sometimes `Arc<str>`'s ergonomics feel a bit off, but I'm hoping that doesnt happen here.
 
 - We don't support `Weak` references, which means the overhead of atomic operations is lower. This is also a "Well, it's a feature to *me*" situation...
+
+It also has all the stuff you'd expect like optional serde support, no_std, etc.
 
 ## Planned funtionality
 
