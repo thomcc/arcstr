@@ -56,6 +56,7 @@
 //! non-borrowed string type (with the caveat that no way to mutate `ArcStr` is
 //! provided intentionally).
 #![cfg_attr(not(feature = "std"), no_std)]
+#![deny(missing_docs)]
 
 extern crate alloc;
 

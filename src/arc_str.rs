@@ -1,3 +1,9 @@
+#![allow(
+    // We follow libstd's lead and prefer to define both.
+    clippy::partialeq_ne_impl,
+    // This is a really annoying clippy lint, since it's required for so many cases...
+    clippy::cast_ptr_alignment,
+)]
 use core::alloc::Layout;
 use core::mem::{align_of, size_of};
 use core::ptr::NonNull;
@@ -190,6 +196,7 @@ impl ArcStr {
     /// assert_eq!(s.to_string(), "abc");
     /// ```
     #[inline]
+    #[allow(clippy::inherent_to_string_shadow_display)]
     pub fn to_string(&self) -> String {
         #[cfg(not(feature = "std"))]
         use alloc::borrow::ToOwned;
