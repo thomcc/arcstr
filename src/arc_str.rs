@@ -1,7 +1,7 @@
 #![allow(
-    // We follow libstd's lead and prefer to define both.
+// We follow libstd's lead and prefer to define both.
     clippy::partialeq_ne_impl,
-    // This is a really annoying clippy lint, since it's required for so many cases...
+// This is a really annoying clippy lint, since it's required for so many cases...
     clippy::cast_ptr_alignment,
 )]
 use core::alloc::Layout;
@@ -104,7 +104,7 @@ use alloc::string::String;
 /// # use arcstr::ArcStr;
 /// fn accepts_str(s: &str) {
 ///    # let _ = s;
-///    // s...
+///     // s...
 /// }
 ///
 /// let test_str: ArcStr = "test".into();
@@ -373,7 +373,10 @@ impl ArcStr {
     ///
     /// let still_static = arcstr::literal!("Shocking!");
     /// assert!(ArcStr::is_static(&still_static));
-    /// assert!(ArcStr::is_static(&still_static.clone()), "Cloned statics are still static");
+    /// assert!(
+    ///     ArcStr::is_static(&still_static.clone()),
+    ///     "Cloned statics are still static"
+    /// );
     ///
     /// let nonstatic = ArcStr::from("Grounded...");
     /// assert!(!ArcStr::is_static(&nonstatic));
@@ -540,7 +543,8 @@ pub struct StaticArcStrInner<Buf> {
 const _: [(); size_of::<StaticArcStrInner<[u8; 0]>>()] = [(); 2 * size_of::<usize>()];
 const _: [(); align_of::<StaticArcStrInner<[u8; 0]>>()] = [(); 8];
 
-const _: [(); size_of::<StaticArcStrInner<[u8; 2 * size_of::<usize>()]>>()] = [(); 4 * size_of::<usize>()];
+const _: [(); size_of::<StaticArcStrInner<[u8; 2 * size_of::<usize>()]>>()] =
+    [(); 4 * size_of::<usize>()];
 const _: [(); align_of::<StaticArcStrInner<[u8; 2 * size_of::<usize>()]>>()] = [(); 8];
 
 const _: [(); size_of::<ThinInner>()] = [(); 2 * size_of::<usize>()];
@@ -552,7 +556,6 @@ const _: [(); size_of::<AtomicUsize>()] = [(); size_of::<usize>()];
 
 const _: [(); align_of::<LenFlags>()] = [(); align_of::<usize>()];
 const _: [(); size_of::<LenFlags>()] = [(); size_of::<usize>()];
-
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -915,9 +918,18 @@ mod test {
 
     fn sasi_layout_check<Buf>() {
         assert!(align_of::<StaticArcStrInner<Buf>>() >= 8);
-        assert_eq!(memoffset::offset_of!(StaticArcStrInner<Buf>, count), OFFSET_STRONGCOUNT);
-        assert_eq!(memoffset::offset_of!(StaticArcStrInner<Buf>, len_flags), OFFSET_LENFLAGS);
-        assert_eq!(memoffset::offset_of!(StaticArcStrInner<Buf>, data), OFFSET_DATA);
+        assert_eq!(
+            memoffset::offset_of!(StaticArcStrInner<Buf>, count),
+            OFFSET_STRONGCOUNT
+        );
+        assert_eq!(
+            memoffset::offset_of!(StaticArcStrInner<Buf>, len_flags),
+            OFFSET_LENFLAGS
+        );
+        assert_eq!(
+            memoffset::offset_of!(StaticArcStrInner<Buf>, data),
+            OFFSET_DATA
+        );
         assert_eq!(
             memoffset::offset_of!(ThinInner, strong),
             memoffset::offset_of!(StaticArcStrInner::<Buf>, count),
