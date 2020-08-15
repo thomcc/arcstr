@@ -5,46 +5,47 @@
 [![Docs](https://docs.rs/arcstr/badge.svg)](https://docs.rs/arcstr)
 [![Latest Version](https://img.shields.io/crates/v/arcstr.svg)](https://crates.io/crates/arcstr)
 
-Or, "types" hopefully — plural. The intent is for it to have a couple of those.
+This crate defines `ArcStr`, a reference counted string type. It's essentially trying to be a better `Arc<str>` or `Arc<String>`, at least for most use cases.
 
-It just has one at the moment: `ArcStr`, which is the important one anyway, and has over `Arc<str>`.
+ArcStr intentionally gives up some of the features of `Arc` which are rarely-used for `Arc<str>` (`Weak`, `Arc::make_mut`, ...). And in exchange, it gets a number of features that are very useful, especially for strings. notably robust support for cheap/zero-cost `ArcStr`s holding static data (for example, string literals).
 
-- Only a single pointer. Great for cases where you want to keep the data structure lightweight or need to do some FFI stuff with it or who knows.
+(Aside from this, it's also a single pointer, which can be good for performance and FFI)
 
-- It's possible to create a const `ArcStr` from a literal string constant.
+Eventually, my hope is to provide a couple utility types built on top of `ArcStr` too (see github issues), but for now, just ArcStr is implemented.
 
-  These are zero cost, take no heap allocation, and don't even need to perform atomic reads/writes when being cloned or dropped (or at any other time). They even get stored in the read-only memory of your executable, which can be beneficial for performance and memory usage.
+## Feature overview
 
-  That said, I won't lie to you: the API for this is... a bit of a janky macro: `unsafe { literal_arcstr!(b"stuff") };`. Thing is, I can't verify UTF-8 validity and stay `const`, and various details mean I need a bytestring literal like `b"..."` which unfortunately means it could be non-utf8.
+A quick tour of the distinguishing features. Note that it offers essentially the full set of functionality you'd expect in addition — these are just the unique selling points (well, the literal support is the main distinguishing feature at the moment):
 
-- That said, `ArcStr::new()` is a `const` function, which isn't true of e.g. `Arc<str>`, which actually has to heap allocate for each default-initialized string. This shouldn't be surprising given the macro I mentioned. Naturally, this means that `ArcStr::default()` is free too. That said, this doesn't make us that special, as most types in libstd get it right, it's just `Arc` that can't.
+```rust
+use arcstr::ArcStr;
+// Works in const:
+const AMAZING: ArcStr = arcstr::literal!("amazing constant");
+assert_eq!(AMAZING, "amazing constant");
 
-- `ArcStr` is totally immutable. No more need to lose sleep over code that thinks it has a right to mutate your `Arc` just because it holds the only reference. This is deliberate and IMO a feature... but I can see why some might want to frame it as a negative.
+// `arcstr::literal!` input can come from `include_str!` too:
+const MY_BEST_FILES: ArcStr = arcstr::literal!(include_str!("my-best-files.txt"));
+```
+Or, you can define the literals in normal expressions. Note that these literals are essentially ["Zero Cost"][zero-cost]. Specifically, below we not only don't allocate any heap memory to instantiate `wow` or any of the clones, we also don't have to perform any atomic reads or writes when cloning, or dropping them (or during any other operations on them).
 
-- More implementations of various traits like `PartialEq<Other>` and friends than `Arc<str>` has AFAIK. That is, sometimes `Arc<str>`'s ergonomics feel a bit off, but I'm hoping that doesnt happen here.
+[zero-cost]: https://docs.rs/arcstr/%2a/arcstr/struct.ArcStr.html#what-does-zero-cost-literals-mean
 
-- We don't support `Weak` references, which means the overhead of atomic operations is lower. This is also a "Well, it's a feature to *me*" situation...
+```rust
+let wow: ArcStr = arcstr::literal!("Wow!");
+assert_eq!("Wow!", wow);
+// This line is probably not something you want to do regularly,
+// but as mentioned, causes no extra allocations, nor performs any
+// atomic loads, stores, rmws, etc.
+let wowzers = wow.clone().clone().clone().clone();
 
-It also has all the stuff you'd expect like optional serde support, no_std, etc.
+// At some point in the future, we can get a `&'static str` out of one
+// of the literal `ArcStr`s too.
+let static_str: Option<&'static str> = ArcStr::as_static(&wowzers);
+assert_eq!(static_str, Some("Wow!"));
 
-## Planned funtionality
+// Note that this returns `None` for dynamically allocated `ArcStr`:
+let dynamic_arc = ArcStr::from(format!("cool {}", 123));
+assert_eq!(ArcStr::as_static(&dynamic_arc), None);
+```
 
-So right, yeah, I did mention that "really the intent is for the crate to have a couple of those". What did I mean by that? Well, there are a few things you can build on `ArcStr` in not much code that are pretty nice:
-
-### `Substr` Type
-
-Essentially an ergonomic `(ArcStr, Range<usize>)`, which can be used to
-avoid allocation when creating a lot of ranges over the same string. A use
-case for this is parsers and lexers (Note that in practice I might use
-`Range<u32>` and not `Range<usize>`).
-
-### `Key` type
-
-Essentially this will be an 8-byte wrapper around `ArcStr` that allows
-storing small 7b-or-fewer strings inline, without allocation. It will be 8
-bytes on 32-bit and 64-bit platforms, since 3b-or-fewer is not compelling.
-
-Actually, I need to do some invesigation that 7b isn't too small too. The
-idea is for use as map keys or other small frequently repeated identifiers.
-
-
+Note that there's a better list of [benefits](https://docs.rs/arcstr/%2a/arcstr/struct.ArcStr.html#benefits-of-arcstr-over-arcstr) in the `ArcStr` documentation which covers some of the reasons you might want to use it over other alternatives.
