@@ -7,7 +7,7 @@
 
 This crate defines `ArcStr`, a reference counted string type. It's essentially trying to be a better `Arc<str>` or `Arc<String>`, at least for most use cases.
 
-ArcStr intentionally gives up some of the features of `Arc` which are rarely-used for `Arc<str>` (`Weak`, `Arc::make_mut`, ...). And in exchange, it gets a number of features that are very useful, especially for strings. notably robust support for cheap/zero-cost `ArcStr`s holding static data (for example, string literals).
+ArcStr intentionally gives up some of the features of `Arc` which are rarely-used for `Arc<str>` (`Weak`, `Arc::make_mut`, ...). And in exchange, it gets a number of features that are very useful, especially for strings. Notably robust support for cheap/zero-cost `ArcStr`s holding static data (for example, string literals).
 
 (Aside from this, it's also a single pointer, which can be good for performance and FFI)
 
