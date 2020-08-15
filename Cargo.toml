@@ -17,11 +17,11 @@ std = []
 default = []
 
 [dependencies]
-memoffset = "0.5"
 serde = { version = "1", default-features = false, optional = true }
 
 [dev-dependencies]
 serde_test = {version = "1", default-features=false}
+memoffset = "0.5"
 
 [target.'cfg(loom)'.dev-dependencies]
 loom = { version = "0.3" }

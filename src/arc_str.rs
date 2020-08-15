@@ -1,5 +1,5 @@
 use core::alloc::Layout;
-use core::mem::align_of;
+use core::mem::{align_of, size_of};
 use core::ptr::NonNull;
 #[cfg(not(all(loom, test)))]
 pub(crate) use core::sync::atomic::{AtomicUsize, Ordering};
@@ -210,8 +210,11 @@ impl ArcStr {
         let p = self.0.as_ptr();
         unsafe {
             let len = ThinInner::get_len_flags(p).len();
-            let data = (p as *const u8).add(memoffset::offset_of!(ThinInner, data));
+
+            let data = (p as *const u8).add(OFFSET_DATA);
+
             debug_assert_eq!(&(*p).data as *const [u8; 0] as usize, data as usize);
+
             core::slice::from_raw_parts(data, len)
         }
     }
@@ -514,9 +517,11 @@ struct ThinInner {
     data: [u8; 0],
 }
 
-// Not public API, exists for macros. Separate only to keep InnerRepr less
-// generic and minimize the number of things bits I need to expose in
-// `$crate::private_::`.
+const OFFSET_LENFLAGS: usize = 0;
+const OFFSET_STRONGCOUNT: usize = size_of::<LenFlags>();
+const OFFSET_DATA: usize = OFFSET_STRONGCOUNT + size_of::<AtomicUsize>();
+
+// Not public API, exists for macros.
 #[repr(C, align(8))]
 #[doc(hidden)]
 pub struct StaticArcStrInner<Buf> {
@@ -524,6 +529,23 @@ pub struct StaticArcStrInner<Buf> {
     pub count: usize,
     pub data: Buf,
 }
+
+const _: [(); size_of::<StaticArcStrInner<[u8; 0]>>()] = [(); 2 * size_of::<usize>()];
+const _: [(); align_of::<StaticArcStrInner<[u8; 0]>>()] = [(); 8];
+
+const _: [(); size_of::<StaticArcStrInner<[u8; 2 * size_of::<usize>()]>>()] = [(); 4 * size_of::<usize>()];
+const _: [(); align_of::<StaticArcStrInner<[u8; 2 * size_of::<usize>()]>>()] = [(); 8];
+
+const _: [(); size_of::<ThinInner>()] = [(); 2 * size_of::<usize>()];
+const _: [(); align_of::<ThinInner>()] = [(); 8];
+
+const _: [(); align_of::<AtomicUsize>()] = [(); align_of::<usize>()];
+const _: [(); align_of::<AtomicUsize>()] = [(); size_of::<usize>()];
+const _: [(); size_of::<AtomicUsize>()] = [(); size_of::<usize>()];
+
+const _: [(); align_of::<LenFlags>()] = [(); align_of::<usize>()];
+const _: [(); size_of::<LenFlags>()] = [(); size_of::<usize>()];
+
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -557,8 +579,7 @@ impl ThinInner {
 
         let num_bytes = data.len();
         debug_assert_ne!(num_bytes, 0);
-
-        let mo = memoffset::offset_of!(ThinInner, data);
+        let mo = OFFSET_DATA;
         if num_bytes >= (isize::MAX as usize) - (mo + ALIGN) {
             alloc_overflow();
         }
@@ -596,7 +617,7 @@ impl ThinInner {
     }
     #[inline]
     unsafe fn get_len_flags(p: *const ThinInner) -> LenFlags {
-        debug_assert_eq!(memoffset::offset_of!(ThinInner, len_flags), 0);
+        debug_assert_eq!(OFFSET_LENFLAGS, 0);
         *p.cast()
     }
 
@@ -606,7 +627,7 @@ impl ThinInner {
         debug_assert!(!lf.is_static());
         let len = lf.len();
         let layout = {
-            let size = len + memoffset::offset_of!(ThinInner, data);
+            let size = len + OFFSET_DATA;
             let align = align_of::<ThinInner>();
             Layout::from_size_align_unchecked(size, align)
         };
@@ -884,22 +905,33 @@ use std::process::abort;
 #[cfg(test)]
 mod test {
     use super::*;
+
+    fn sasi_layout_check<Buf>() {
+        assert!(align_of::<StaticArcStrInner<Buf>>() >= 8);
+        assert_eq!(memoffset::offset_of!(StaticArcStrInner<Buf>, count), OFFSET_STRONGCOUNT);
+        assert_eq!(memoffset::offset_of!(StaticArcStrInner<Buf>, len_flags), OFFSET_LENFLAGS);
+        assert_eq!(memoffset::offset_of!(StaticArcStrInner<Buf>, data), OFFSET_DATA);
+        assert_eq!(
+            memoffset::offset_of!(ThinInner, strong),
+            memoffset::offset_of!(StaticArcStrInner::<Buf>, count),
+        );
+        assert_eq!(
+            memoffset::offset_of!(ThinInner, len_flags),
+            memoffset::offset_of!(StaticArcStrInner::<Buf>, len_flags),
+        );
+        assert_eq!(
+            memoffset::offset_of!(ThinInner, data),
+            memoffset::offset_of!(StaticArcStrInner::<Buf>, data),
+        );
+    }
+
     #[test]
     fn verify_type_pun_offsets_sasi_big_bufs() {
-        fn sasi_layout_check<Buf>() {
-            assert_eq!(
-                memoffset::offset_of!(ThinInner, strong),
-                memoffset::offset_of!(StaticArcStrInner::<Buf>, count),
-            );
-            assert_eq!(
-                memoffset::offset_of!(ThinInner, len_flags),
-                memoffset::offset_of!(StaticArcStrInner::<Buf>, len_flags),
-            );
-            assert_eq!(
-                memoffset::offset_of!(ThinInner, data),
-                memoffset::offset_of!(StaticArcStrInner::<Buf>, data),
-            );
-        }
+        assert_eq!(memoffset::offset_of!(ThinInner, strong), OFFSET_STRONGCOUNT);
+        assert_eq!(memoffset::offset_of!(ThinInner, len_flags), OFFSET_LENFLAGS);
+        assert_eq!(memoffset::offset_of!(ThinInner, data), OFFSET_DATA);
+
+        assert!(align_of::<ThinInner>() >= 8);
 
         sasi_layout_check::<[u8; 0]>();
         sasi_layout_check::<[u8; 1]>();

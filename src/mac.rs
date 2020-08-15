@@ -1,4 +1,3 @@
-
 /// Create a const `ArcStr` from a string literal. The resulting `ArcStr`
 /// require no heap allocation, can be freely cloned and used interchangeably
 /// with `ArcStr`s from the heap, and are effectively "free".

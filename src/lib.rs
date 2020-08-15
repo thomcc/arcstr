@@ -66,7 +66,6 @@ mod arc_str;
 mod impl_serde;
 pub use arc_str::ArcStr;
 
-
 // Not public API, exists for macros
 #[doc(hidden)]
 pub mod _private {
