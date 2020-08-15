@@ -1,5 +1,5 @@
 use core::alloc::Layout;
-use core::mem::{align_of, size_of};
+use core::mem::align_of;
 use core::ptr::NonNull;
 #[cfg(not(all(loom, test)))]
 pub(crate) use core::sync::atomic::{AtomicUsize, Ordering};
@@ -423,8 +423,6 @@ impl Clone for ArcStr {
     fn clone(&self) -> Self {
         let this = self.0.as_ptr();
         unsafe {
-            // debug_assert_eq!(memoffset::offset_of!(ThinInner, nonstatic), 0);
-            // let nonstatic_p = this as *const _ as *const bool;
             let is_static = ThinInner::get_len_flags(this).is_static();
             if !is_static {
                 // From libstd's impl:
@@ -489,35 +487,36 @@ impl Drop for ArcStr {
 // we are a normal arc-ed string.
 //
 // While `ArcStr` claims to hold a pointer to a `ThinInner`, for the static case
-// we actually are using a pointer to a `ThinInnerStatic`. These are the same
-// except for the type of the refernce count field. The issue is: We kind of
-// need the static ones to not have any interior mutability, so that `const`s
-// can use them, and so that they may be stored in read-only memory.
+// we actually are using a pointer to a `StaticArcStrInner<[u8; N]>`. These have
+// almost identical layouts, except the static contains a explicit trailing
+// array, and does not have a `AtomicUsize` The issue is: We kind of want the
+// static ones to not have any interior mutability, so that `const`s can use
+// them, and so that they may be stored in read-only memory.
 //
 // We do this by keeping a flag in `len_flags` flag to indicate which case we're
-// in, and maintaining the invariant that if we're a `ThinInnerStatic` **we may
-// never access `.strong` in any way**.
+// in, and maintaining the invariant that if we're a `StaticArcStrInner` **we
+// may never access `.strong` in any way or produce a `&ThinInner` pointing to
+// our data**.
 //
 // This is more subtle than you might think, sinc AFAIK we're not legally
-// allowed to create an `&InnerRepr<AtomicUsize>` until we're 100% sure it's
-// nonstatic, and prior to determining it, we are forced to work from entirely
-// behind a raw pointer...
+// allowed to create an `&ThinInner` until we're 100% sure it's nonstatic, and
+// prior to determining it, we are forced to work from entirely behind a raw
+// pointer...
+//
+// That said, a bit of this hoop jumping might be not required in the future,
+// but for now what we're doing works and is apparently sound:
+// https://github.com/rust-lang/unsafe-code-guidelines/issues/246
 #[repr(C, align(8))]
-struct InnerRepr<RcTy> {
+struct ThinInner {
     len_flags: LenFlags,
-    // kind of a misnomer since there are no weak refs rn.
-    strong: RcTy,
-    // #[cfg(debug_assertions)]
-    // orig_layout: Layout,
+    // kind of a misnomer since there are no weak refs rn. XXX ever?
+    strong: AtomicUsize,
     data: [u8; 0],
 }
 
 // Not public API, exists for macros. Separate only to keep InnerRepr less
 // generic and minimize the number of things bits I need to expose in
 // `$crate::private_::`.
-//
-// TODO: `ThinInnerStatic` is redundant w/ `StaticArcStrInner<[u8; 0]>` and
-// should be removed/replaced.
 #[repr(C, align(8))]
 #[doc(hidden)]
 pub struct StaticArcStrInner<Buf> {
@@ -531,7 +530,6 @@ pub struct StaticArcStrInner<Buf> {
 struct LenFlags(usize);
 
 impl LenFlags {
-    const EMPTY_STATIC: LenFlags = LenFlags(0);
     #[inline]
     const fn len(self) -> usize {
         self.0 >> 1
@@ -551,23 +549,7 @@ impl LenFlags {
     }
 }
 
-type ThinInner = InnerRepr<AtomicUsize>;
-type ThinInnerStatic = InnerRepr<usize>;
-const _: [(); size_of::<ThinInnerStatic>()] = [(); size_of::<ThinInner>()];
-const _: [(); align_of::<ThinInnerStatic>()] = [(); align_of::<ThinInner>()];
-
-const EMPTY_INNER: &ThinInnerStatic = &ThinInnerStatic {
-    len_flags: LenFlags::EMPTY_STATIC,
-    strong: 0usize,
-    // This is removed because it seems dodgy with the macro, and `miri` seems
-    // to be able to catch mismatches anyway.
-    // #[cfg(debug_assertions)]
-    // orig_layout: Layout::new::<ThinInnerStatic>(),
-    data: [],
-};
-
-const EMPTY: ArcStr =
-    ArcStr(unsafe { NonNull::new_unchecked(EMPTY_INNER as *const _ as *mut ThinInner) });
+const EMPTY: ArcStr = literal!("");
 
 impl ThinInner {
     fn allocate(data: &str) -> NonNull<Self> {
@@ -601,10 +583,6 @@ impl ThinInner {
             core::ptr::write(&mut (*ptr).len_flags, lf);
             core::ptr::write(&mut (*ptr).strong, AtomicUsize::new(1));
 
-            // #[cfg(debug_assertions)]
-            // {
-            //     core::ptr::write(&mut (*ptr).orig_layout, layout);
-            // }
             debug_assert_eq!(
                 (alloced as *const u8).wrapping_add(mo),
                 (*ptr).data.as_ptr(),
@@ -626,12 +604,10 @@ impl ThinInner {
     unsafe fn destroy_cold(p: *mut ThinInner) {
         let lf = Self::get_len_flags(p);
         debug_assert!(!lf.is_static());
-        // debug_assert!((*p).nonstatic);
         let len = lf.len();
         let layout = {
             let size = len + memoffset::offset_of!(ThinInner, data);
             let align = align_of::<ThinInner>();
-            // debug_assert_eq!(Layout::from_size_align(size, align), Ok((*p).orig_layout));
             Layout::from_size_align_unchecked(size, align)
         };
         alloc::alloc::dealloc(p as *mut _, layout);
@@ -908,23 +884,6 @@ use std::process::abort;
 #[cfg(test)]
 mod test {
     use super::*;
-    #[test]
-    fn verify_type_pun_offsets() {
-        assert_eq!(
-            memoffset::offset_of!(ThinInner, strong),
-            memoffset::offset_of!(ThinInnerStatic, strong),
-        );
-        assert_eq!(
-            memoffset::offset_of!(ThinInner, len_flags),
-            memoffset::offset_of!(ThinInnerStatic, len_flags),
-        );
-        assert_eq!(memoffset::offset_of!(ThinInner, len_flags), 0);
-        assert_eq!(
-            memoffset::offset_of!(ThinInner, data),
-            memoffset::offset_of!(ThinInnerStatic, data),
-        );
-    }
-
     #[test]
     fn verify_type_pun_offsets_sasi_big_bufs() {
         fn sasi_layout_check<Buf>() {
