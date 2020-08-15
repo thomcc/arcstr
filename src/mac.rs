@@ -3,7 +3,8 @@
 /// with `ArcStr`s from the heap, and are effectively "free".
 ///
 /// The main downside is that it's a macro. Eventually it may be doable as a
-/// `const fn`, but for now the drawbacks to this are not overwhelming.
+/// `const fn`, which would be cleaner, but for now the drawbacks to this are
+/// not overwhelming, and the functionality it provides is very useful.
 ///
 /// # Usage
 ///
