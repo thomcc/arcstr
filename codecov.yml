@@ -1,0 +1,13 @@
+coverage:
+  branch: main
+  # Don't trigger CI failure on coverage reduction. I care about code coverage a
+  # lot in this project, but I'm capable of making the decision on my own, and
+  # can't run certain tests under coverage (loom's thread fuzzing stuff, for
+  # example).
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
