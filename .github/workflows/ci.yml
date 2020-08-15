@@ -107,8 +107,7 @@ jobs:
       - name: Run tests
         run: cargo miri test
 
-  # Clippy is bothering me so I just used cargo check here...
-  cargo-check:
+  cargo-clippy:
     name: Lint
     runs-on: ubuntu-latest
     env:
@@ -120,12 +119,12 @@ jobs:
       - uses: hecrj/setup-rust-action@v1
         with:
           rust-version: stable
-      - name: Run cargo check (default features)
-        run: cargo check --workspace --all-targets --verbose
-      - name: Run cargo check (all features)
-        run: cargo check --workspace --all-targets --verbose --all-features
-      - name: Run cargo check (no features)
-        run: cargo check --workspace --all-targets --verbose --no-default-features
+      - name: Run cargo clippy (default features)
+        run: cargo clippy --workspace --all-targets --verbose
+      - name: Run cargo clippy (all features)
+        run: cargo clippy --workspace --all-targets --verbose --all-features
+      - name: Run cargo clippy (no features)
+        run: cargo clippy --workspace --all-targets --verbose --no-default-features
 
   # Ensure patch is formatted.
   fmt:

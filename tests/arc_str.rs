@@ -1,3 +1,10 @@
+#![allow(
+    // need to test cloning, these are deliberate.
+    clippy::redundant_clone,
+    // yep, we create owned instance just for comparison, to test comparison
+    // with owned instacnces.
+    clippy::cmp_owned,
+)]
 use arcstr::ArcStr;
 
 #[test]
@@ -196,8 +203,8 @@ fn test_strong_count() {
     assert_eq!(Some(2), ArcStr::strong_count(&foobar));
     assert_eq!(Some(2), ArcStr::strong_count(&also_foobar));
 
-    let baz = arcstr::literal!("baz");
-    assert_eq!(None, ArcStr::strong_count(&baz));
+    let astr = arcstr::literal!("baz");
+    assert_eq!(None, ArcStr::strong_count(&astr));
     assert_eq!(None, ArcStr::strong_count(&ArcStr::default()));
 }
 
