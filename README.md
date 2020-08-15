@@ -49,3 +49,21 @@ assert_eq!(ArcStr::as_static(&dynamic_arc), None);
 ```
 
 Note that there's a better list of [benefits](https://docs.rs/arcstr/%2a/arcstr/struct.ArcStr.html#benefits-of-arcstr-over-arcstr) in the `ArcStr` documentation which covers some of the reasons you might want to use it over other alternatives.
+
+## Usage
+
+It's a normal rust crate, drop it in your `Cargo.toml` dep section. In the wildly unlikely case that you're here and don't kown how:
+
+```toml
+arcstr = { version = "...", features = [any features you want] }
+```
+
+The following cargo features are available. None are on by default currently.
+
+- `std` (off by default). Tuen on to use `std::process` aborting.
+
+    Essentially, there's one case we need to abort, and that's during a catastrophic error where you leak the same (dynamic) `ArcStr` 2^31 on 32-bit systems, or 2^63 in 64-bit systems. If this happens, we follow `libstd`'s lead and just abort because we're hosed anyway. If `std` is enabled, we use the real `std::process::abort`. If `std` is not enabled, we trigger an `abort` by triggering a panic while another panic is unwinding, which is either defined to cause an abort, or causes one in practice.
+
+    In pratice you will never hit this edge case, and it still works in no_std, so no_std is the default. If you have to turn this on, because you hit this ridiculous case and found our handling bad, let me know
+
+- `serde` enable serde serialization of `ArcStr`, off by default. Note that this doesn't do any fancy deduping or whatever.
