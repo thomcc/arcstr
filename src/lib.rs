@@ -1,51 +1,60 @@
-//! Various implementations of `Arc<str>`-like types.
+//! # Better reference counted strings
 //!
-//! Well, just the one at the moment: [`ArcStr`], which has the following
-//! benefits over `Arc<str>`:
+//! This crate defines [`ArcStr`], a type similar to `Arc<str>`, but with a
+//! number of new features and functionality. Theres a list of
+//! [benefits][benefits] in the `ArcStr` documentation comment which covers some
+//! of the reasons you might want to use it over other alternatives
 //!
-//! - Only a single pointer. Great for cases where you want to keep the data
-//!   structure lightweight or need to do some FFI stuff with it.
+//! (Aside: eventually, my hope is to provide a couple utility types built on
+//! top of `ArcStr`, but for now, just the main one).
 //!
-//! - It's possible to create a const `arcstr` from a literal via the
-//!   [`literal_arcstr!`][crate::literal_arcstr] macro.
+//! [benefits]: struct.ArcStr.html#benefits-of-arcstr-over-arcstr
 //!
-//!   These are zero cost, take no heap allocation, and don't even need to
-//!   perform atomic reads/writes when being cloned or dropped (or at any other
-//!   time). They even get stored in the read-only memory of your executable,
-//!   which can be beneficial for performance and memory usage. (The downside is
-//!   that the API is a bit janky, see it's docs for why).
+//! ## Feature overview
 //!
-//! - [`ArcStr::new()`](ArcStr.html#method.new) is a `const` function. This
-//!   shouldn't be surprising given point 2 though. Naturally, this means that
-//!   `ArcStr::default()` is free (unlike `std::sync::Arc<str>::default()`).
+//! A quick tour of the distinguishing features:
 //!
-//! - `ArcStr` is totally immutable. No need to lose sleep over code that thinks
-//!   it has a right to mutate your `Arc` just because it holds the only
-//!   reference.
+//! ```
+//! use arcstr::ArcStr;
 //!
-//! - More implementations of various traits `PartialEq<Other>` and other traits
-//!   that hopefully will help improve ergonomics.
+//! // Works in const:
+//! const MY_ARCSTR: ArcStr = arcstr::literal!("amazing constant");
+//! assert_eq!(MY_ARCSTR, "amazing constant");
 //!
-//! - We don't support `Weak` references, which means the overhead of atomic
-//!   operations is lower.
+//! // `arcstr::literal!` input can come from `include_str!` too:
+//! # // We have to fake it here, but this has test coverage and such.
+//! # const _: &str = stringify!{
+//! const MY_ARCSTR: ArcStr = arcstr::literal!(include_str!("my-best-files.txt"));
+//! # };
+//! ```
 //!
-//! ### Planned or incomplete funtionality
+//! Or, you can define the literals in normal expressions. Note that these
+//! literals are essentially ["Zero Cost"][zero-cost]. Specifically, below we
+//! not only don't allocate any heap memory to instantiate `wow` or any of the
+//! clones, we also don't have to perform any atomic reads or writes.
 //!
-//! #### `Substr` Type
+//! [zero-cost]: struct.ArcStr.html#what-does-zero-cost-literals-mean
 //!
-//! Essentially an ergonomic `(ArcStr, Range<usize>)`, which can be used to
-//! avoid allocation when creating a lot of ranges over the same string. A use
-//! case for this is parsers and lexers (Note that in practice I might use
-//! `Range<u32>` and not `Range<usize>`).
+//! ```
+//! use arcstr::ArcStr;
 //!
-//! #### `Key` type.
+//! let wow: ArcStr = arcstr::literal!("Wow!");
+//! assert_eq!("Wow!", wow);
+//! // This line is probably not something you want to do regularly,
+//! // but causes no extra allocations, nor performs any atomic reads
+//! // nor writes.
+//! let wowzers = wow.clone().clone().clone().clone();
 //!
-//! Essentially this will be an 8-byte wrapper around `ArcStr` that allows
-//! storing small 7b-or-fewer strings inline, without allocation. It will be 8
-//! bytes on 32-bit and 64-bit platforms, since 3b-or-fewer is not compelling.
+//! // At some point in the future, we can get a `&'static str` out of one
+//! // of the literal `ArcStr`s too. Note that this returns `None` for
+//! // dynamically allocated `ArcStr`:
+//! let static_str: Option<&'static str> = ArcStr::as_static(&wowzers);
+//! assert_eq!(static_str, Some("Wow!"));
+//! ```
 //!
-//! Actually, I need to do some invesigation that 7b isn't too small too. The
-//! idea is for use as map keys or other small frequently repeated identifiers.
+//! Of course, this is in addition to the typical functionality you might find a
+//! non-borrowed string type (with the caveat that no way to mutate `ArcStr` is
+//! provided intentionally).
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
