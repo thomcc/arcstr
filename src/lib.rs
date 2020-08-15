@@ -54,67 +54,77 @@ mod arc_str;
 mod impl_serde;
 pub use arc_str::ArcStr;
 
-/// Create a const `ArcStr` from a (byte-string) literal. The resulting `ArcStr`
+/// Create a const `ArcStr` from a string literal. The resulting `ArcStr`
 /// require no heap allocation, can be freely cloned and used interchangeably
 /// with `ArcStr`s from the heap, and are effectively "free".
 ///
-/// The downside here is that the API for creating them is not perfect :(.
-///
-/// - First, it's a macro, not a `const fn`.
-///
-/// - Second, a byte-string literal is required, and not a string literal. So
-///   instead of `literal_arcstr!("foo")` you must do `literal_arcstr!(b"foo")`.
-///
-/// - Third, this macro is `unsafe`, as not accepting a `&str` literal means we
-///   can't guarantee UTF-8 any longer.
-///
-/// These drawbacks suck, but this functionality is insanely useful.
-///
-/// This is also why it's `arcstr::literal_arcstr!(...)` instead of a nicer
-/// `arcstr::literal!(...)`: I'm saving the better name for when the `unsafe` is
-/// no longer needed.
-///
-/// (P.S. please file an issue, PR, or contact me somehow if you know a way
-/// around this. Note that it's trickier than it might seem, though).
+/// The main downside is that it's a macro. Eventually it may be doable as a
+/// `const fn`, but for now the drawbacks to this are not overwhelming.
 ///
 /// # Usage
 ///
 /// ```
-/// # use arcstr::{ArcStr, literal_arcstr};
-/// // The argument must be a byte-string literal. E.g. `b"foo"`.
-/// // Not plain `"foo"`! Additionally, `unsafe` is required as we
-/// // cannot ensure the input is valid UTF-8.
-/// const MY_ARCSTR: ArcStr = unsafe { literal_arcstr!(b"testing testing") };
+/// # use arcstr::ArcStr;
+/// // Works in const:
+/// const MY_ARCSTR: ArcStr = arcstr::literal!("testing testing");
 /// assert_eq!(MY_ARCSTR, "testing testing");
 ///
 /// // Or, just in normal expressions.
-/// assert_eq!("Wow!", unsafe { literal_arcstr!(b"Wow!") });
+/// assert_eq!("Wow!", arcstr::literal!("Wow!"));
 /// ```
 ///
-/// # Safety
+/// Another motivating use case is bundled files (eventually this will improve
+/// when `arcstr::Substr` is implemented):
 ///
-/// The argument to this macro must be valid UTF-8.
-///
-/// Because this only accepts a byte-string literal, it is possible to provide
-/// invalid UTF-8 (e.g. `b"f\xff"`), which would be a violation of the safety
-/// contract. Dont' do it!
+/// ```rust,ignore
+/// use arcstr::ArcStr;
+/// const VERY_IMPORTANT_FILE: ArcStr =
+///     arcstr::literal!(include_str!("./very-important.txt"));
+/// ```
 #[macro_export]
-macro_rules! literal_arcstr {
-    ($bytes:expr) => {{
-        const LEN: usize = $bytes.len();
-        const BYTES: &[u8; LEN] = $bytes;
-        const INNER: &$crate::private_::StaticArcStrInner<[u8; LEN]> =
-            &$crate::private_::StaticArcStrInner {
-                len_flags: LEN << 1,
-                count: 0,
-                data: *BYTES,
+macro_rules! literal {
+    ($text:expr) => {{
+        // Note: extra scope to reduce the size of what's in `$text`'s scope
+        // (note that consts in macros dont have hygene the way let does).
+        const __TEXT: &str = $text;
+        {
+            const SI: &$crate::_private::StaticArcStrInner<[u8; __TEXT.len()]> = unsafe {
+                &$crate::_private::StaticArcStrInner {
+                    len_flags: __TEXT.len() << 1,
+                    count: 0,
+                    // See comment for `_private::ConstPtrDeref` for what the hell's
+                    // going on here.
+                    data: *$crate::_private::ConstPtrDeref::<[u8; __TEXT.len()]> {
+                        p: __TEXT.as_ptr(),
+                    }
+                    .a,
+                }
             };
-        $crate::ArcStr::new_static(INNER)
+            const S: ArcStr = unsafe { $crate::ArcStr::_private_new_from_static_data(SI) };
+            S
+        }
     }};
 }
 
 // Not public API, exists for macros
 #[doc(hidden)]
-pub mod private_ {
+pub mod _private {
+    // Not part of public API. transmutes a `*const u8` to a `&[u8; N]`.
+    //
+    // As of writing this, it's unstable to directly deref a raw pointer in
+    // const code, we can get around this by transmuting (using the
+    // const-transmute union trick) to tranmute from `*const u8` to `&[u8; N]`,
+    // and the dereferencing that.
+    //
+    // ... I'm a little surprised that this is allowed, but in general I do
+    // remember a motivation behind stabilizing transmute in `const fn` was that
+    // the union trick existed as a workaround.
+    //
+    // Anyway, this trick is courtesy of rodrimati1992 (that means you have to
+    // blame them if it blows up :p).
+    pub union ConstPtrDeref<Arr: Copy + 'static> {
+        pub p: *const u8,
+        pub a: &'static Arr,
+    }
     pub use crate::arc_str::StaticArcStrInner;
 }
