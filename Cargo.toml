@@ -1,9 +1,9 @@
 [package]
 name = "arcstr"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Thom Chiovoloni <chiovolonit@gmail.com>"]
 edition = "2018"
-description = "A better reference-counted string type"
+description = "A better reference-counted string type, with zero-cost (allocation-free) support for string literals"
 license = "Apache-2.0 OR MIT"
 readme = "README.md"
 keywords = ["arc", "refcount", "arc_str", "rc_str", "string"]
