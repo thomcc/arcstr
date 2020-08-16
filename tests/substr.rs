@@ -307,10 +307,81 @@ fn test_substr_from() {
 }
 
 #[test]
+fn test_try_substr_from_using() {
+    let orig = arcstr::literal!("   bcdef   ");
+    let a = orig.substr(1..10);
+    let ss = a.try_substr_from(&a.as_str()[1..8]).unwrap();
+    assert_eq!(ss, " bcdef ");
+    assert!(Substr::shallow_eq(&ss, &orig.substr(2..9)));
+    let ss2 = orig.try_substr_using(str::trim);
+    assert_eq!(ss2.unwrap(), "bcdef");
+
+    let nil = orig.try_substr_using(|s| s.get(5..100).unwrap_or(""));
+    assert_eq!(nil.unwrap(), "");
+    let nil = a.try_substr_using(|s| s.get(5..100).unwrap_or(""));
+    assert_eq!(nil.unwrap(), "");
+    // lifetimes make it pretty hard to misuse this — I do wonder if generative
+    // lifetimes would make it even harder... But for now, we keep the checks.
+    let outside = a.try_substr_using(|_| &ArcStr::as_static(&orig).unwrap()[..]);
+    assert_eq!(outside, None);
+    let outside_l = a.try_substr_using(|_| &ArcStr::as_static(&orig).unwrap()[1..]);
+    assert_eq!(outside_l, None);
+    let outside_r = a.try_substr_using(|_| &ArcStr::as_static(&orig).unwrap()[..10]);
+    assert_eq!(outside_r, None);
+    let outside_lr = a.try_substr_using(|_| &ArcStr::as_static(&orig).unwrap()[1..10]);
+    assert_eq!(outside_lr.as_deref(), Some("  bcdef  "));
+}
+#[test]
+#[should_panic]
+fn test_substr_using_panic0() {
+    let orig = arcstr::literal!("   bcdef   ");
+    let a = orig.substr(1..10);
+    let _s = a.substr_using(|_| &ArcStr::as_static(&orig).unwrap()[..]);
+}
+#[test]
+#[should_panic]
+fn test_substr_using_panic1() {
+    let orig = arcstr::literal!("   bcdef   ");
+    let a = orig.substr(1..10);
+    let _s = a.substr_using(|_| &ArcStr::as_static(&orig).unwrap()[1..]);
+}
+
+#[test]
+#[should_panic]
+fn test_substr_using_panic2() {
+    let orig = arcstr::literal!("   bcdef   ");
+    let a = orig.substr(1..10);
+    let _s = a.substr_using(|_| &ArcStr::as_static(&orig).unwrap()[..10]);
+}
+
+#[test]
+fn test_substr_from_using() {
+    let orig = ArcStr::from("   bcdef   ");
+    let a = orig.substr(1..10);
+    let ss = a.substr_from(&a.as_str()[1..8]);
+    assert_eq!(ss, " bcdef ");
+    assert!(Substr::shallow_eq(&ss, &orig.substr(2..9)));
+    let ss2 = orig.substr_using(str::trim);
+    assert_eq!(ss2, "bcdef");
+
+    let nil = orig.substr_using(|s| s.get(5..100).unwrap_or(""));
+    assert_eq!(nil, "");
+    let nil = a.substr_using(|s| s.get(5..100).unwrap_or(""));
+    assert_eq!(nil, "");
+}
+
+#[test]
 #[should_panic]
 fn test_substr_from_panic() {
     let a = ArcStr::from("  abcdefg  ");
     let _s = a.substr_from("abcdefg");
+}
+
+#[test]
+#[should_panic]
+fn test_substr_using_arc_panic() {
+    let a = ArcStr::from("  abcdefg  ");
+    let _s = a.substr_using(|_| "abcdefg");
 }
 
 #[test]

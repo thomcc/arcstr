@@ -392,6 +392,145 @@ impl Substr {
     pub fn range(&self) -> Range<usize> {
         (self.1 as usize)..(self.2 as usize)
     }
+
+    /// Returns a [`Substr`] of self over the given `&str`, or panics.
+    ///
+    /// It is not rare to end up with a `&str` which holds a view into a
+    /// `Substr`'s backing data. A common case is when using functionality that
+    /// takes and returns `&str` and are entirely unaware of `arcstr`, for
+    /// example: `str::trim()`.
+    ///
+    /// This function allows you to reconstruct a [`Substr`] from a `&str` which
+    /// is a view into this `Substr`'s backing string.
+    ///
+    /// See [`Substr::try_substr_from`] for a version that returns an option
+    /// rather than panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use arcstr::Substr;
+    /// let text = Substr::from("   abc");
+    /// let trimmed = text.trim();
+    /// let substr: Substr = text.substr_from(trimmed);
+    /// assert_eq!(substr, "abc");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `substr` isn't a view into our memory.
+    ///
+    /// Also panics if `substr` is a view into our memory but is >= `u32::MAX`
+    /// bytes away from our start, if we're a 64-bit machine and
+    /// `substr-usize-indices` is not enabled.
+    pub fn substr_from(&self, substr: &str) -> Substr {
+        // TODO: should outline `expect` call to avoid fmt bloat and let us
+        // provide better error message like we do for ArcStr
+        self.try_substr_from(substr)
+            .expect("non-substring passed to Substr::substr_from")
+    }
+
+    /// If possible, returns a [`Substr`] of self over the given `&str`.
+    ///
+    /// This is a fallible version of [`Substr::substr_from`].
+    ///
+    /// It is not rare to end up with a `&str` which holds a view into a
+    /// `ArcStr`'s backing data. A common case is when using functionality that
+    /// takes and returns `&str` and are entirely unaware of `arcstr`, for
+    /// example: `str::trim()`.
+    ///
+    /// This function allows you to reconstruct a [`Substr`] from a `&str` which
+    /// is a view into this [`Substr`]'s backing string. Note that we accept the
+    /// empty string as input, in which case we return the same value as
+    /// [`Substr::new`] (For clarity, this no longer holds a reference to
+    /// `self.parent()`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use arcstr::Substr;
+    /// let text = Substr::from("   abc");
+    /// let trimmed = text.trim();
+    /// let substr: Option<Substr> = text.try_substr_from(trimmed);
+    /// assert_eq!(substr.unwrap(), "abc");
+    /// // `&str`s not derived from `self` will return None.
+    /// let not_substr = text.try_substr_from("abc");
+    /// assert!(not_substr.is_none());
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `substr` is a view into our memory but is >= `u32::MAX` bytes
+    /// away from our start, on a 64-bit machine, when `substr-usize-indices` is
+    /// not enabled.
+    pub fn try_substr_from(&self, substr: &str) -> Option<Substr> {
+        if substr.is_empty() {
+            return Some(Substr::new());
+        }
+        let parent_ptr = self.0.as_ptr() as usize;
+        let self_start = parent_ptr + (self.1 as usize);
+        let self_end = parent_ptr + (self.2 as usize);
+
+        let substr_start = substr.as_ptr() as usize;
+        let substr_end = substr_start + substr.len();
+        if substr_start < self_start || substr_end > self_end {
+            return None;
+        }
+
+        let index = substr_start - self_start;
+        let end = index + substr.len();
+        Some(self.substr(index..end))
+    }
+    /// Compute a derived `&str` a function of `&str` => `&str`, and produce a
+    /// Substr of the result if possible.
+    ///
+    /// The function may return either a derived string, or any empty string.
+    ///
+    /// This function is mainly a wrapper around [`Substr::try_substr_from`]. If
+    /// you're coming to `arcstr` from the `shared_string` crate, this is the
+    /// moral equivalent of the `slice_with` function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use arcstr::Substr;
+    /// let text = Substr::from("   abc");
+    /// let trimmed: Option<Substr> = text.try_substr_using(str::trim);
+    /// assert_eq!(trimmed.unwrap(), "abc");
+    /// let other = text.try_substr_using(|_s| "different string!");
+    /// assert_eq!(other, None);
+    /// // As a special case, this is allowed.
+    /// let empty = text.try_substr_using(|_s| "");
+    /// assert_eq!(empty.unwrap(), "");
+    /// ```
+    pub fn try_substr_using(&self, f: impl FnOnce(&str) -> &str) -> Option<Self> {
+        self.try_substr_from(f(self.as_str()))
+    }
+    /// Compute a derived `&str` a function of `&str` => `&str`, and produce a
+    /// Substr of the result.
+    ///
+    /// The function may return either a derived string, or any empty string.
+    /// Returning anything else will result in a panic.
+    ///
+    /// This function is mainly a wrapper around [`Substr::try_substr_from`]. If
+    /// you're coming to `arcstr` from the `shared_string` crate, this is the
+    /// likely closest to the `slice_with_unchecked` function, but this panics
+    /// instead of UB on dodginess.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use arcstr::Substr;
+    /// let text = Substr::from("   abc");
+    /// let trimmed: Substr = text.substr_using(str::trim);
+    /// assert_eq!(trimmed, "abc");
+    /// // As a special case, this is allowed.
+    /// let empty = text.substr_using(|_s| "");
+    /// assert_eq!(empty, "");
+    /// ```
+    pub fn substr_using(&self, f: impl FnOnce(&str) -> &str) -> Self {
+        self.substr_from(f(self.as_str()))
+    }
 }
 
 impl From<ArcStr> for Substr {
