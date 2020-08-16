@@ -45,8 +45,17 @@ macro_rules! literal {
                     .a,
                 }
             };
-            const S: ArcStr = unsafe { $crate::ArcStr::_private_new_from_static_data(SI) };
+            const S: $crate::ArcStr = unsafe { $crate::ArcStr::_private_new_from_static_data(SI) };
             S
         }
     }};
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn ensure_no_import() {
+        let v = literal!("foo");
+        assert_eq!(v, "foo");
+    }
 }
