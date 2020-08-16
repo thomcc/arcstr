@@ -58,7 +58,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
 
-extern crate alloc;
+#[doc(hidden)]
+pub extern crate alloc;
 
 #[macro_use]
 mod mac;
@@ -66,6 +67,11 @@ mod arc_str;
 #[cfg(feature = "serde")]
 mod impl_serde;
 pub use arc_str::ArcStr;
+
+#[cfg(feature = "substr")]
+mod substr;
+#[cfg(feature = "substr")]
+pub use substr::Substr;
 
 // Not public API, exists for macros
 #[doc(hidden)]

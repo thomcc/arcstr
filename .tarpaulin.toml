@@ -1,0 +1,9 @@
+[all_features]
+features = "std serde substr substr-usize-indices"
+
+[substr_u32]
+features = "std serde substr"
+
+[no_features]
+features = ""
+
