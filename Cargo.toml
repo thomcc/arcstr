@@ -14,7 +14,9 @@ homepage = "https://github.com/thomcc/arcstr"
 
 [features]
 std = []
-default = []
+default = ["substr"]
+substr = []
+substr-usize-indices = ["substr"]
 
 [dependencies]
 serde = { version = "1", default-features = false, optional = true }
@@ -25,3 +27,6 @@ memoffset = "0.5"
 
 [target.'cfg(loom)'.dev-dependencies]
 loom = { version = "0.3" }
+
+[package.metadata.docs.rs]
+features = ["std", "substr"]

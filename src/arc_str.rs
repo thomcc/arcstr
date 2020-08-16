@@ -12,6 +12,8 @@ pub(crate) use core::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(all(loom, test))]
 pub(crate) use loom::sync::atomic::{AtomicUsize, Ordering};
 
+#[cfg(feature = "substr")]
+use crate::Substr;
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -429,6 +431,151 @@ impl ArcStr {
     ) -> Self {
         Self(NonNull::new_unchecked(ptr as *const _ as *mut ThinInner))
     }
+
+    /// `feature = "substr"` Returns a substr of `self` over the given range.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use arcstr::{ArcStr, Substr};
+    ///
+    /// let a = ArcStr::from("abcde");
+    /// let b: Substr = a.substr(2..);
+    ///
+    /// assert_eq!(b, "cde");
+    /// ```
+    ///
+    /// # Panics
+    /// If any of the following are untrue, we panic
+    /// - `range.start() <= range.end()`
+    /// - `range.end() <= self.len()`
+    /// - `self.is_char_boundary(start) && self.is_char_boundary(end)`
+    /// - These can be conveniently verified in advance using
+    ///   `self.get(start..end).is_some()` if needed.
+    #[cfg(feature = "substr")]
+    #[inline]
+    pub fn substr(&self, range: impl core::ops::RangeBounds<usize>) -> Substr {
+        Substr::from_parts(self, range)
+    }
+
+    /// `feature = "substr"` Returns a [`Substr`] of self over the given `&str`.
+    ///
+    /// It is not rare to end up with a `&str` which holds a view into a
+    /// `ArcStr`'s backing data. A common case is when using functionality that
+    /// takes and returns `&str` and are entirely unaware of `arcstr`, for
+    /// example: `str::trim()`.
+    ///
+    /// This function allows you to reconstruct a [`Substr`] from a `&str` which
+    /// is a view into this `ArcStr`'s backing string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use arcstr::{ArcStr, Substr};
+    /// let text = ArcStr::from("   abc");
+    /// let trimmed = text.trim();
+    /// let substr: Substr = text.substr_from(trimmed);
+    /// assert_eq!(substr, "abc");
+    /// // for illustration
+    /// assert!(ArcStr::ptr_eq(substr.parent(), &text));
+    /// assert_eq!(substr.range(), 3..6);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `substr` isn't a view into our memory.
+    ///
+    /// Also panics if `substr` is a view into our memory but is >= `u32::MAX`
+    /// bytes away from our start, if we're a 64-bit machine and
+    /// `substr-usize-indices` is not enabled.
+    #[cfg(feature = "substr")]
+    pub fn substr_from(&self, substr: &str) -> Substr {
+        if substr.is_empty() {
+            return Substr::new();
+        }
+
+        let self_start = self.as_ptr() as usize;
+        let self_end = self_start + self.len();
+
+        let substr_start = substr.as_ptr() as usize;
+        let substr_end = substr_start + substr.len();
+        if substr_start < self_start || substr_end > self_end {
+            out_of_range(self, &substr);
+        }
+
+        let index = substr_start - self_start;
+        let end = index + substr.len();
+        self.substr(index..end)
+    }
+
+    /// `feature = "substr"` If possible, returns a [`Substr`] of self over the
+    /// given `&str`.
+    ///
+    /// This is a fallible version of [`ArcStr::substr_from`].
+    ///
+    /// It is not rare to end up with a `&str` which holds a view into a
+    /// `ArcStr`'s backing data. A common case is when using functionality that
+    /// takes and returns `&str` and are entirely unaware of `arcstr`, for
+    /// example: `str::trim()`.
+    ///
+    /// This function allows you to reconstruct a [`Substr`] from a `&str` which
+    /// is a view into this `ArcStr`'s backing string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use arcstr::{ArcStr, Substr};
+    /// let text = ArcStr::from("   abc");
+    /// let trimmed = text.trim();
+    /// let substr: Option<Substr> = text.try_substr_from(trimmed);
+    /// assert_eq!(substr.unwrap(), "abc");
+    /// // `&str`s not derived from `self` will return None.
+    /// let not_substr = text.try_substr_from("abc");
+    /// assert!(not_substr.is_none());
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `substr` is a view into our memory but is >= `u32::MAX` bytes
+    /// away from our start, if we're a 64-bit machine and
+    /// `substr-usize-indices` is not enabled.
+    #[cfg(feature = "substr")]
+    pub fn try_substr_from(&self, substr: &str) -> Option<Substr> {
+        if substr.is_empty() {
+            return Some(Substr::new());
+        }
+
+        let self_start = self.as_ptr() as usize;
+        let self_end = self_start + self.len();
+
+        let substr_start = substr.as_ptr() as usize;
+        let substr_end = substr_start + substr.len();
+        if substr_start < self_start || substr_end > self_end {
+            return None;
+        }
+
+        let index = substr_start - self_start;
+        let end = index + substr.len();
+        debug_assert!(self.get(index..end).is_some());
+        Some(self.substr(index..end))
+    }
+}
+
+#[cold]
+#[inline(never)]
+#[cfg(feature = "substr")]
+fn out_of_range(arc: &ArcStr, substr: &&str) -> ! {
+    let arc_start = arc.as_ptr() as usize;
+    let arc_end = arc_start + arc.len();
+    let substr_start = substr.as_ptr() as usize;
+    let substr_end = substr_start + substr.len();
+    panic!(
+        "ArcStr over ({:p}..{:p}) does not contain substr over ({:p}..{:p})",
+        arc_start as *const u8,
+        arc_end as *const u8,
+        substr_start as *const u8,
+        substr_end as *const u8,
+    )
 }
 
 impl Clone for ArcStr {

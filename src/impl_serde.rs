@@ -1,4 +1,8 @@
 use super::ArcStr;
+#[cfg(feature = "substr")]
+use super::Substr;
+
+use core::marker::PhantomData;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 impl Serialize for ArcStr {
@@ -9,13 +13,31 @@ impl Serialize for ArcStr {
 
 impl<'de> Deserialize<'de> for ArcStr {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        d.deserialize_str(ArcStrVisitor)
+        d.deserialize_str(StrVisitor::<ArcStr>(PhantomData))
     }
 }
 
-struct ArcStrVisitor;
-impl<'de> de::Visitor<'de> for ArcStrVisitor {
-    type Value = ArcStr;
+#[cfg(feature = "substr")]
+impl Serialize for crate::Substr {
+    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        ser.serialize_str(self)
+    }
+}
+
+#[cfg(feature = "substr")]
+impl<'de> Deserialize<'de> for Substr {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_str(StrVisitor::<Substr>(PhantomData))
+    }
+}
+
+struct StrVisitor<StrTy>(PhantomData<fn() -> StrTy>);
+
+impl<'de, StrTy> de::Visitor<'de> for StrVisitor<StrTy>
+where
+    for<'a> &'a str: Into<StrTy>,
+{
+    type Value = StrTy;
     fn expecting(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter.write_str("a string")
     }
