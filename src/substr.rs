@@ -13,6 +13,14 @@ type Idx = usize;
 #[cfg(not(feature = "substr-usize-indices"))]
 type Idx = u32;
 
+#[cfg(not(any(target_pointer_width = "64", target_pointer_width = "32")))]
+compile_error!(
+    "Non-32/64-bit pointers not supported right now due to insufficient \
+    testing on a platform like that. Please file a issue with the \
+    `arcstr` crate so we can talk about your use case if this is \
+    important to you."
+);
+
 /// A low-cost string type representing a view into an [`ArcStr`].
 ///
 /// Conceptually this is `(ArcStr, Range<usize>)` with ergonomic helpers. In
@@ -20,11 +28,28 @@ type Idx = u32;
 /// type is `u32` unless the `substr-usize-indices` feature is enabled, which
 /// makes them use `usize`.
 ///
+/// # Examples
+///
+/// ```
+/// use arcstr::{ArcStr, Substr};
+/// let parent = ArcStr::from("foo   bar");
+/// // The main way to create a Substr is with `ArcStr::substr`.
+/// let substr: Substr = parent.substr(3..);
+/// assert_eq!(substr, "   bar");
+/// // You can use `substr_using` to turn a function which is
+/// // `&str => &str` into a function over `Substr => Substr`.
+/// // See also `substr_from`, `try_substr_{from,using}`, and
+/// // the functions with the same name on `ArcStr`.
+/// let trimmed = substr.substr_using(str::trim);
+/// assert_eq!(trimmed, "bar");
+/// ```
+///
 /// # Caveats
-/// The main caveat is the bit I mentioned above. The index type is u32 by
+///
+/// The main caveat is the bit about index types. The index type is u32 by
 /// default. You can turn on `substr-usize-indices` if you desire though. The
 /// feature doesn't change the public API at all, just makes it able to handle
-/// enormous strings without panicking.
+/// enormous strings without panicking. This seems very niche to me, though.
 #[derive(Clone)]
 #[repr(C)] // We mentioned ArcStr being good at FFI at some point so why not
 pub struct Substr(ArcStr, Idx, Idx);

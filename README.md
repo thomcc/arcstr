@@ -1,4 +1,4 @@
-# `arcstr`: A better reference-counted string type.
+# `arcstr`: Better reference-counted strings.
 
 [![Build Status](https://github.com/thomcc/arcstr/workflows/CI/badge.svg)](https://github.com/thomcc/arcstr/actions)
 [![codecov](https://codecov.io/gh/thomcc/arcstr/branch/main/graph/badge.svg)](https://codecov.io/gh/thomcc/arcstr)
@@ -11,11 +11,11 @@ ArcStr intentionally gives up some of the features of `Arc` which are rarely-use
 
 (Aside from this, it's also a single pointer, which can be good for performance and FFI)
 
-Eventually, my hope is to provide a couple utility types built on top of `ArcStr` too (see github issues), but for now, just ArcStr is implemented.
+Additionally, if the `substr` feature is enabled (and it is by default) we provide a `Substr` type which is essentially a `(ArcStr, Range<usize>)` with better ergonomics and more functionality, which represents a shared slice of a "parent" `ArcStr` (Note that in reality, `u32` is used for the index type, but this is not exposed in the API, and can be transparently changed via a cargo feature).
 
 ## Feature overview
 
-A quick tour of the distinguishing features. Note that it offers essentially the full set of functionality you'd expect in addition — these are just the unique selling points (well, the literal support is the main distinguishing feature at the moment):
+A quick tour of the distinguishing features (note that there's a list of [benefits](https://docs.rs/arcstr/%2a/arcstr/struct.ArcStr.html#benefits-of-arcstr-over-arcstr) in the `ArcStr` documentation which covers some of the reasons you might want to use it over other alternatives). Note that it offers essentially the full set of functionality string-like functionality you probably would expect from an immutable string type — these are just the unique selling points:
 
 ```rust
 use arcstr::ArcStr;
@@ -26,6 +26,7 @@ assert_eq!(AMAZING, "amazing constant");
 // `arcstr::literal!` input can come from `include_str!` too:
 const MY_BEST_FILES: ArcStr = arcstr::literal!(include_str!("my-best-files.txt"));
 ```
+
 Or, you can define the literals in normal expressions. Note that these literals are essentially ["Zero Cost"][zero-cost]. Specifically, below we not only don't allocate any heap memory to instantiate `wow` or any of the clones, we also don't have to perform any atomic reads or writes when cloning, or dropping them (or during any other operations on them).
 
 [zero-cost]: https://docs.rs/arcstr/%2a/arcstr/struct.ArcStr.html#what-does-zero-cost-literals-mean
@@ -48,22 +49,56 @@ let dynamic_arc = ArcStr::from(format!("cool {}", 123));
 assert_eq!(ArcStr::as_static(&dynamic_arc), None);
 ```
 
-Note that there's a better list of [benefits](https://docs.rs/arcstr/%2a/arcstr/struct.ArcStr.html#benefits-of-arcstr-over-arcstr) in the `ArcStr` documentation which covers some of the reasons you might want to use it over other alternatives.
+Open TODO: Include `Substr` usage here, as it has some compelling use cases too!
 
 ## Usage
 
-It's a normal rust crate, drop it in your `Cargo.toml` dep section. In the wildly unlikely case that you're here and don't kown how:
+It's a normal rust crate, drop it in your `Cargo.toml`'s dependencies section. In the somewhat unlikely case that you're here and don't know how:
 
 ```toml
-arcstr = { version = "...", features = ["any", "features", "you", "want"] }
+[dependencies]
+# ...
+arcstr = { version = "...", features = ["..."] }
 ```
 
-The following cargo features are available. None are on by default currently.
+The following cargo features are available. Only `substr` is on by default currently.
 
-- `std` (off by default). Turn on to use `std::process`'s aborting, instead of triggering an abort using the "double-panic trick".
+- `std` (off by default): Turn on to use `std::process`'s aborting, instead of triggering an abort using the "double-panic trick".
 
     Essentially, there's one case we need to abort, and that's during a catastrophic error where you leak the same (dynamic) `ArcStr` 2^31 on 32-bit systems, or 2^63 in 64-bit systems. If this happens, we follow `libstd`'s lead and just abort because we're hosed anyway. If `std` is enabled, we use the real `std::process::abort`. If `std` is not enabled, we trigger an `abort` by triggering a panic while another panic is unwinding, which is either defined to cause an abort, or causes one in practice.
 
-    In pratice you will never hit this edge case, and it still works in no_std, so no_std is the default. If you have to turn this on, because you hit this ridiculous case and found our handling bad, let me know
+    In pratice you will never hit this edge case, and it still works in no_std, so no_std is the default. If you have to turn this on, because you hit this ridiculous case and found our handling bad, let me know.
 
-- `serde` enable serde serialization of `ArcStr`, off by default. Note that this doesn't do any fancy deduping or whatever.
+    Concretely, the difference here is that without this, this case becomes a call to `core::intrinsics::abort`, and not `std::process::abort`. It's a ridiculously unlikely edge case to hit, but if you are to hit it, `std::process::abort` results in a `SIGABRT` whereas `core::intrinsics::abort` results in a `SIGILL`, and the former has meaningfully better UX. That said, it's extraordinarially unlikely that you manage to leak `2^31` or `2^63` copies of the same `ArcStr`, so it's not really worth depending on `std` by default for in our opinion.
+
+- `serde` (off by default): enable serde serialization of `ArcStr`. Note that this doesn't do any fancy deduping or whatever.
+
+- `substr` (**on by default**): implement the `Substr` type and related functions.
+
+- `substr-usize-indices` (off by default, implies `substr`): Use `usize` under the hood for the boundaries, instead of `u32`.
+
+    Without this, if you use `Substr` and an index would overflow a `u32` we unceremoniously panic.
+
+## Use of `unsafe` and testing strategy
+
+While this crate does contain a decent amount of unsafe code, we justify this in the following ways:
+
+1. We have a very high test coverage ratio (essentially only OOM and a case where we handle out-of-memory and a particularly pathologic ).
+2. All tests pass under various sanitizers: `asan`, `msan`, `tsan`, and `miri`.
+3. We have a few [`loom`](https://crates.io/crates/loom) models although I'd love to have more.
+4. Our tests pass on a ton of different targets (thanks to [`cross`](https://github.com/rust-embedded/cross/) for many of these possible — easy even):
+    - Linux x86, x86_64, armv7 (arm32), aarch64 (arm64), and mips64 (this is so that we have tests on a big-endian platform. However, currently we don't have any endian-specific code).
+    - Windows x86_64 GNU and MSVC toolchain (patches welcome for 32-bit).
+    - MacOS on x86_64
+
+Additionally, we test on Rust stable, beta, nightly, and our MSRV (see below).
+
+## MSRV policy
+
+Currently our MSRV is `1.43.0` (If this somehow gets out of date, check [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)). (Note: It's plausible that this will bump to 1.46.0 when it releases for better `const fn`).
+
+Note that pre-1.0 MSRV increases will be considered a major change e.g. `0.N.x` => `0.M.0` where `M >= N+1`.
+
+However, once we hit 1.0 (if there's a sufficiently compelling need) it's likely that I'll only treat it as a minor change, e.g. `1.N.x` => `1.M.0`.
+
+That said, I'm not fully married to this plan yet, so let me know if a policy like this would prevent you from using `arcstr`.

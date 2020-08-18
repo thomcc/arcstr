@@ -30,6 +30,7 @@ jobs:
           - { build: macos,    os: macos-latest, rust: stable }
           - { build: win-msvc, os: windows-2019, rust: stable }
           - { build: win-gnu,  os: windows-2019, rust: stable-x86_64-gnu }
+          # Update the number in README if you bump MSRV
           - { build: msrv,     os: ubuntu-latest, rust: '1.43.0' }
           - { build: beta,     os: ubuntu-latest, rust: beta }
           - { build: nightly,  os: ubuntu-latest, rust: nightly }
