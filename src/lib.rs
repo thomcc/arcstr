@@ -3,10 +3,14 @@
 //! This crate defines [`ArcStr`], a type similar to `Arc<str>`, but with a
 //! number of new features and functionality. Theres a list of
 //! [benefits][benefits] in the `ArcStr` documentation comment which covers some
-//! of the reasons you might want to use it over other alternatives
+//! of the reasons you might want to use it over other alternatives.
 //!
-//! (Aside: eventually, my hope is to provide a couple utility types built on
-//! top of `ArcStr`, but for now, just the main one).
+//! Additionally, if the `substr` feature is enabled (and it is by default) we
+//! provide a [`Substr`] type which is essentially a `(ArcStr, Range<usize>)`
+//! with better ergonomics and more functionality, which represents a shared
+//! slice of a "parent" `ArcStr`. (Note that in reality, `u32` is used for the
+//! index type, but this is not exposed in the API, and can be transparently
+//! changed via a cargo feature).
 //!
 //! [benefits]: struct.ArcStr.html#benefits-of-arcstr-over-arcstr
 //!
@@ -55,6 +59,8 @@
 //! Of course, this is in addition to the typical functionality you might find a
 //! non-borrowed string type (with the caveat that no way to mutate `ArcStr` is
 //! provided intentionally).
+//!
+//! It's an open TODO to update this "feature tour" to include `Substr`.
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
 
