@@ -124,9 +124,15 @@ mod test {
             let substr = literal_substr!("bar");
             assert_eq!(substr, "bar");
         }
-        let foo = crate::format!("foo");
-        assert_eq!(foo, "foo");
-        let foo123 = crate::format!("foo {}", 123);
-        assert_eq!(foo123, "foo 123");
+        // Loom doesn't like it if you do things outside `loom::model`, AFAICT.
+        // These calls produce error messages from inside `libstd` about
+        // accessing thread_locals that haven't been initialized.
+        #[cfg(not(loom))]
+        {
+            let test = crate::format!("foo");
+            assert_eq!(test, "foo");
+            let test2 = crate::format!("foo {}", 123);
+            assert_eq!(test2, "foo 123");
+        }
     }
 }
