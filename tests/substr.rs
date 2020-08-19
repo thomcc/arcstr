@@ -20,6 +20,10 @@ fn double_substr() {
     assert_eq!(s.substr(..=4), "barba");
     assert_eq!(s.substr(1..=5), "arbaz");
     assert_eq!(s.substr(..=5), "barbaz");
+    assert_eq!(
+        s.substr((core::ops::Bound::Excluded(1), core::ops::Bound::Unbounded)),
+        "rbaz"
+    );
 }
 
 #[test]
@@ -33,6 +37,10 @@ fn single_substr() {
     assert_eq!(s.substr(..=4), "barba");
     assert_eq!(s.substr(1..=5), "arbaz");
     assert_eq!(s.substr(..=5), "barbaz");
+    assert_eq!(
+        s.substr((core::ops::Bound::Excluded(1), core::ops::Bound::Unbounded)),
+        "rbaz"
+    );
 }
 
 #[test]
@@ -399,4 +407,21 @@ fn test_try_substr_from() {
     let ss = a.try_substr_from(a.trim());
     assert_eq!(ss.as_deref(), Some("abcdefg"));
     assert!(Substr::shallow_eq(&ss.unwrap(), &a.substr(2..9)));
+}
+
+#[test]
+fn test_try_substr_from_substr() {
+    let subs = arcstr::literal_substr!("  abcdefg  ");
+    assert!(subs.try_substr_from("abcdefg").is_none());
+    let ss = subs.try_substr_from(&subs.as_str()[2..]);
+    assert_eq!(ss.as_deref(), Some("abcdefg  "));
+    assert!(Substr::shallow_eq(&ss.unwrap(), &subs.substr(2..)));
+
+    let ss = subs.try_substr_from(&subs.as_str()[..9]);
+    assert_eq!(ss.as_deref(), Some("  abcdefg"));
+    assert!(Substr::shallow_eq(&ss.unwrap(), &subs.substr(..9)));
+
+    let ss = subs.try_substr_from(subs.trim());
+    assert_eq!(ss.as_deref(), Some("abcdefg"));
+    assert!(Substr::shallow_eq(&ss.unwrap(), &subs.substr(2..9)));
 }

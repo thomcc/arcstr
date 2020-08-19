@@ -300,8 +300,11 @@ impl Substr {
     }
 
     /// Unchecked function to cunstruct a [`Substr`] from an [`ArcStr`] and a
-    /// byte range. This function is largely discouraged in favor of
-    /// [`ArcStr::substr`][crate::ArcStr::substr].
+    /// byte range. Direct usage of this function is largely discouraged in
+    /// favor of [`ArcStr::substr`][crate::ArcStr::substr], or the
+    /// [`literal_substr!`](crate::literal_substr) macro, which currently is
+    /// implemented using a call to this function (however, can guarantee safe
+    /// usage).
     ///
     /// This is unsafe because currently `ArcStr` cannot provide a `&str` in a
     /// `const fn`. If that changes then we will likely deprecate this function,
