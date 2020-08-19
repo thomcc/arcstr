@@ -156,6 +156,8 @@ fn test_fmt() {
         format!("{:?}", ArcStr::from("__test__").substr(2..6)),
         "\"test\""
     );
+    assert_eq!(arcstr::format!("{:?}", "__test__"), "\"__test__\"");
+    assert_eq!(arcstr::format!("test2"), "test2");
 }
 #[test]
 fn test_parts_shallow_eq() {

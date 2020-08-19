@@ -51,6 +51,31 @@ macro_rules! literal {
     }};
 }
 
+/// Conceptually equivalent to `ArcStr::from(format!("...", args...))`.
+///
+/// Currently, the only difference here is that when used with no formatting
+/// args, this behaves equivalently to [`arcstr::literal!`](crate::literal).
+///
+/// In the future, this will be implemented in such a way to avoid an additional
+/// string copy which is required by the `from` operation.
+///
+/// # Example
+///
+/// ```
+/// let arcstr = arcstr::format!("testing {}", 123);
+/// assert_eq!(arcstr, "testing 123");
+/// ```
+#[macro_export]
+macro_rules! format {
+    ($text:expr $(,)?) => {
+        // prevent use as const, but keep cheap.
+        $crate::ArcStr::from($crate::literal!($text))
+    };
+    ($text:expr, $($toks:tt)+) => {
+        $crate::ArcStr::from($crate::alloc::fmt::format(::core::format_args!($text, $($toks)+)))
+    };
+}
+
 /// `feature = "substr"`: Create a `const` [`Substr`][crate::Substr].
 ///
 /// This is a wrapper that initializes a `Substr` over the entire contents of a
@@ -99,5 +124,9 @@ mod test {
             let substr = literal_substr!("bar");
             assert_eq!(substr, "bar");
         }
+        let foo = crate::format!("foo");
+        assert_eq!(foo, "foo");
+        let foo123 = crate::format!("foo {}", 123);
+        assert_eq!(foo123, "foo 123");
     }
 }
