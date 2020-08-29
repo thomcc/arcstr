@@ -72,7 +72,7 @@ macro_rules! format {
         $crate::ArcStr::from($crate::literal!($text))
     };
     ($text:expr, $($toks:tt)+) => {
-        $crate::ArcStr::from($crate::alloc::fmt::format(::core::format_args!($text, $($toks)+)))
+        $crate::ArcStr::from($crate::alloc::fmt::format($crate::core::format_args!($text, $($toks)+)))
     };
 }
 
