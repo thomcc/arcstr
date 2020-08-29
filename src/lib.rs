@@ -67,6 +67,9 @@
 #[doc(hidden)]
 pub extern crate alloc;
 
+#[doc(hidden)]
+pub use core;
+
 #[macro_use]
 mod mac;
 mod arc_str;
