@@ -88,8 +88,8 @@ While this crate does contain a decent amount of unsafe code, we justify this in
 3. We have a few [`loom`](https://crates.io/crates/loom) models although I'd love to have more.
 4. Our tests pass on a ton of different targets (thanks to [`cross`](https://github.com/rust-embedded/cross/) for many of these possible — easy even):
     - Linux x86, x86_64, armv7 (arm32), aarch64 (arm64), and mips64 (this is so that we have tests on a big-endian platform. However, currently we don't have any endian-specific code).
-    - Windows 32-bit and 64-bit GNU and MSVC toolchain
-    - MacOS on x86_64
+    - Windows 32-bit and 64-bit, on both GNU and MSVC toolchains.
+    - MacOS on x86_64.
 
 Additionally, we test on Rust stable, beta, nightly, and our MSRV (see below).
 
