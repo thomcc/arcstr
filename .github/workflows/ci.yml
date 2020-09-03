@@ -24,12 +24,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: [macos, linux, linux32, win-msvc, win-gnu, msrv, beta, nightly, arm32, arm64, mips64]
+        build: [macos, linux, linux32, win64-msvc, win64-gnu, win32-msvc, win32-gnu, msrv, beta, nightly, arm32, arm64, mips64]
         include:
           - { build: linux,    os: ubuntu-latest, rust: stable }
           - { build: macos,    os: macos-latest, rust: stable }
-          - { build: win-msvc, os: windows-2019, rust: stable }
-          - { build: win-gnu,  os: windows-2019, rust: stable-x86_64-gnu }
+          - { build: win64-msvc, os: windows-2019, rust: stable }
+          - { build: win64-gnu,  os: windows-2019, rust: stable-x86_64-gnu }
+          - { build: win32-msvc, os: windows-2019, rust: stable-i686-msvc }
+          - { build: win32-gnu,  os: windows-2019, rust: stable-i686-gnu }
           # Update the number in README if you bump MSRV
           - { build: msrv,     os: ubuntu-latest, rust: '1.43.0' }
           - { build: beta,     os: ubuntu-latest, rust: beta }
