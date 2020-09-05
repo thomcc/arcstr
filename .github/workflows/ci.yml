@@ -36,7 +36,7 @@ jobs:
           - { build: msrv,     os: ubuntu-latest, rust: '1.43.0' }
           - { build: beta,     os: ubuntu-latest, rust: beta }
           - { build: nightly,  os: ubuntu-latest, rust: nightly }
-          - { build: linux32,  os: ubuntu-latest, rust: stable, target: i686-unknown-linux-gnu }
+          - { build: linux32,  os: ubuntu-latest, rust: stable-i686 }
           # these should prob. be more generic arm targets and not android
           - { build: arm32,    os: ubuntu-latest, rust: stable, target: armv7-linux-androideabi }
           - { build: arm64,    os: ubuntu-latest, rust: stable, target: aarch64-linux-android }
