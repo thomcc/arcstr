@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: [macos, linux, linux32, win64-msvc, win64-gnu, win32-msvc, win32-gnu, msrv, beta, nightly, arm32, arm64, mips64]
+        build: [macos, linux, linux32, win64-msvc, win64-gnu, win32-msvc, win32-gnu, msrv, beta, nightly, arm32, arm64, mips32, mips64]
         include:
           - { build: linux,    os: ubuntu-latest, rust: stable }
           - { build: macos,    os: macos-latest, rust: stable }
@@ -41,6 +41,7 @@ jobs:
           - { build: arm32,    os: ubuntu-latest, rust: stable, target: armv7-linux-androideabi }
           - { build: arm64,    os: ubuntu-latest, rust: stable, target: aarch64-linux-android }
           # Mips is big endian. Nothing currently in here cares... but I have big dreams, you see?
+          - { build: mips32,   os: ubuntu-latest, rust: stable, target: mips-unknown-linux-gnu }
           - { build: mips64,   os: ubuntu-latest, rust: stable, target: mips64-unknown-linux-gnuabi64 }
 
     steps:
