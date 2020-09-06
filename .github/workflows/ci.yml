@@ -170,9 +170,22 @@ jobs:
         # Note: needs cargo rustdoc, not cargo doc.
         run: cargo rustdoc --all-features -- -D warnings
 
-  asan:
-    name: Address Sanitizer
+  sanitizers:
+    name: Test sanitizer ${{ matrix.sanitizer }}
     runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: 0
+      # only used by asan, but we set it for all of them cuz its easy
+      ASAN_OPTIONS: detect_stack_use_after_return=1
+
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, thread, memory]
+        # could do this instead of repeating 3x in the test invocation, but lets not be wasteful
+        # test_flags: ['--features="std serde substr"', '--no-default-features', '--all-features']
+        include:
+          - { sanitizer: memory, extra_rustflags: '-Zsanitizer-memory-track-origins' }
     steps:
       - uses: actions/checkout@v2
         with:
@@ -183,64 +196,15 @@ jobs:
           toolchain: nightly
           override: true
           components: rust-src
-      - name: Test with Address Sanitizer
+      - name: Test with sanitizer
         env:
-          RUSTFLAGS: -Zsanitizer=address
-          RUSTDOCFLAGS: -Zsanitizer=address
-          ASAN_OPTIONS: 'detect_stack_use_after_return=1'
-          # Work around https://github.com/rust-lang/rust/issues/59125 by
-          # disabling backtraces. In an ideal world we'd probably suppress the
-          # leak sanitization, but we don't care about backtraces here, so long
-          # as the other tests have them.
-          RUST_BACKTRACE: '0'
+          RUSTFLAGS: -Zsanitizer=${{ matrix.sanitizer }} ${{ matrix.extra_rustflags }}
+          RUSTDOCFLAGS: -Zsanitizer=${{ matrix.sanitizer }} ${{ matrix.extra_rustflags }}
         run: |
-          cargo -Z build-std test --features="std serde substr" --target=x86_64-unknown-linux-gnu
-          cargo -Z build-std test --all-features --target=x86_64-unknown-linux-gnu
-          cargo -Z build-std test --no-default-features --target=x86_64-unknown-linux-gnu
-  tsan:
-    name: Thread Sanitizer
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-          components: rust-src
-      - name: Test with Thread Sanitizer
-        env:
-          RUSTFLAGS: -Zsanitizer=thread
-          RUSTDOCFLAGS: -Zsanitizer=thread
-          RUST_BACKTRACE: '0'
-        run: |
-          cargo -Z build-std test --features="std serde substr" --target=x86_64-unknown-linux-gnu
-          cargo -Z build-std test --all-features --target=x86_64-unknown-linux-gnu
-          cargo -Z build-std test --no-default-features --target=x86_64-unknown-linux-gnu
-  msan:
-    name: Memory Sanitizer
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-          components: rust-src
-      - name: Test with Memory Sanitizer
-        env:
-          RUSTFLAGS: '-Zsanitizer=memory -Zsanitizer-memory-track-origins'
-          RUSTDOCFLAGS: '-Zsanitizer=memory -Zsanitizer-memory-track-origins'
-          RUST_BACKTRACE: '0'
-        run: |
-          cargo -Z build-std test --features="std serde substr" --target=x86_64-unknown-linux-gnu
-          cargo -Z build-std test --all-features --target=x86_64-unknown-linux-gnu
-          cargo -Z build-std test --no-default-features --target=x86_64-unknown-linux-gnu
+          echo "note: RUSTFLAGS='$RUSTFLAGS'"
+          cargo -Zbuild-std test --target=x86_64-unknown-linux-gnu --features="std serde substr"
+          cargo -Zbuild-std test --target=x86_64-unknown-linux-gnu --all-features
+          cargo -Zbuild-std test --target=x86_64-unknown-linux-gnu --no-default-features
 
   codecov:
     name: Generate code coverage
