@@ -56,10 +56,9 @@ jobs:
       - name: Setup cross if needed
         if: matrix.target != ''
         run: |
-          CROSS_VER=v0.2.1
-          URL="https://github.com/rust-embedded/cross/releases/download/${CROSS_VER}/cross-${CROSS_VER}-unknown-linux-gnu.tar.gz"
-          curl -sfSL --retry 5 --retry-delay 10 "$URL" | tar zxf -
-          echo "::set-env name=CARGO::$(pwd)/cross"
+          URL="https://github.com/rust-embedded/cross/releases/download/v0.2.1/cross-v0.2.1-x86_64-unknown-linux-gnu.tar.gz"
+          curl -sfSL --retry 5 --retry-delay 10 $URL | tar zxf -
+          echo "::set-env name=CARGO::./cross"
           echo "::set-env name=TARGET::--target ${{ matrix.target }}"
 
       - name: Show command used for Cargo
