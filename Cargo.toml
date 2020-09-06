@@ -1,6 +1,6 @@
 [package]
 name = "arcstr"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Thom Chiovoloni <chiovolonit@gmail.com>"]
 edition = "2018"
 description = "A better reference-counted string type, with zero-cost (allocation-free) support for string literals, and reference counted substrings."
