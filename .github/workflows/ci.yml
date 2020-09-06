@@ -43,6 +43,9 @@ jobs:
           # Mips is big endian. Nothing currently in here cares... but I have big dreams, you see?
           - { build: mips32,   os: ubuntu-latest, rust: stable, target: mips-unknown-linux-gnu }
           - { build: mips64,   os: ubuntu-latest, rust: stable, target: mips64-unknown-linux-gnuabi64 }
+          # Requested by a user, not sure if it adds anything we aren't already
+          # testing but it's easy enough so *shrug*.
+          - { build: riscv,    os: ubuntu-latest, rust: stable, target: riscv64gc-unknown-linux-gnu }
 
     steps:
       - uses: actions/checkout@v2
