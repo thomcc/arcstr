@@ -58,12 +58,10 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Use Cross
+      - name: Setup cross if needed
         if: matrix.target != ''
         run: |
-          # FIXME: to work around bugs in latest cross release, install master.
-          # See: https://github.com/rust-embedded/cross/issues/357
-          cargo install --git https://github.com/rust-embedded/cross
+          cargo install cross
           echo "::set-env name=CARGO::cross"
           echo "::set-env name=TARGET::--target ${{ matrix.target }}"
 
@@ -196,6 +194,7 @@ jobs:
           toolchain: nightly
           override: true
           components: rust-src
+
       - name: Test with sanitizer
         env:
           RUSTFLAGS: -Zsanitizer=${{ matrix.sanitizer }} ${{ matrix.extra_rustflags }}
