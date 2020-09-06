@@ -1,10 +1,10 @@
 name: CI
 
 on:
-  push: {}
-  pull_request: {}
+  pull_request:
+  push:
   schedule:
-  - cron: '00 01 * * *'
+  - cron: '0 0 * * *'
 
 env:
   RUST_BACKTRACE: 1
@@ -56,14 +56,17 @@ jobs:
       - name: Setup cross if needed
         if: matrix.target != ''
         run: |
-          cargo install cross
-          echo "::set-env name=CARGO::cross"
+          CROSS_VER=v0.2.1
+          URL="https://github.com/rust-embedded/cross/releases/download/${CROSS_VER}/cross-${CROSS_VER}-unknown-linux-gnu.tar.gz"
+          curl -sfSL --retry 5 --retry-delay 10 "$URL" | tar zxf -
+          echo "::set-env name=CARGO::$(pwd)/cross"
           echo "::set-env name=TARGET::--target ${{ matrix.target }}"
 
       - name: Show command used for Cargo
         run: |
           echo "cargo command is: ${{ env.CARGO }}"
           echo "target flag is: ${{ env.TARGET }}"
+          ${{ env.CARGO }} --version
 
       - name: Test --no-default-features
         run: ${{ env.CARGO }} test --no-default-features --verbose  ${{ env.TARGET }}
