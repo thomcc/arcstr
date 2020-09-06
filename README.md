@@ -87,18 +87,24 @@ While this crate does contain a decent amount of unsafe code, we justify this in
 2. All tests pass under various sanitizers: `asan`, `msan`, `tsan`, and `miri`.
 3. We have a few [`loom`](https://crates.io/crates/loom) models although I'd love to have more.
 4. Our tests pass on a ton of different targets (thanks to [`cross`](https://github.com/rust-embedded/cross/) for many of these possible — easy even):
-    - Linux x86, x86_64, armv7 (arm32), aarch64 (arm64), and mips64 (this is so that we have tests on a big-endian platform. However, currently we don't have any endian-specific code).
+    - Linux x86, x86_64, armv7 (arm32), aarch64 (arm64), riscv64, mips32, and mips64 (the mips32 and mips64 targets allow us to check both big-endian 32bit and 64bit. Although we don't have any endian-specific code at the moment).
     - Windows 32-bit and 64-bit, on both GNU and MSVC toolchains.
     - MacOS on x86_64.
 
-Additionally, we test on Rust stable, beta, nightly, and our MSRV (see below).
+Additionally, we test on Rust stable, beta, nightly, and our MSRV (1.43.0, see below for our MSRV stability policy).
+
+#### Supported platforms
+
+Note that the above is *not* a list of supported platforms. In general I expect `arcstr` to support all platform's Rust supports, except for ones with `target_pointer_width="16"`, which *should* work if you turn off the `substr` feature. That said, if you'd like me to add a platform to the CI coverage to ensure it doesn't break, just ask\* (although, if it's harder than adding a line for another `cross` target, I'll probably need you to justify why it's likely to not be covered by the existing platform tests).
+
+\* This is why there are riscv64.
 
 ## MSRV policy
 
-Currently our MSRV is `1.43.0` (If this somehow gets out of date, check [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)). (Note: It's plausible that this will bump to 1.46.0 when it releases for better `const fn`).
+Currently our MSRV is `1.43.0` (If this somehow gets out of date, check [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)).
 
 Note that pre-1.0 MSRV increases will be considered a major change e.g. `0.N.x` => `0.M.0` where `M >= N+1`.
 
-However, once we hit 1.0 (if there's a sufficiently compelling need) it's likely that I'll only treat it as a minor change, e.g. `1.N.x` => `1.M.0`.
+However, once we hit 1.0 (if there's a sufficiently compelling need) it's likely that I'll only treat it as a minor change, e.g. `1.N.x` => `1.M.0`, with the limitation that I'll not do this before the version is well supported (for example, available on debian stable, and the like).
 
 That said, I'm not fully married to this plan yet, so let me know if a policy like this would prevent you from using `arcstr`.
