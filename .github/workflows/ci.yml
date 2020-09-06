@@ -20,7 +20,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: [macos, linux, linux32, win64-msvc, win64-gnu, win32-msvc, win32-gnu, msrv, beta, nightly, arm32, arm64, mips32, mips64]
         include:
           - { build: linux,    os: ubuntu-latest, rust: stable }
           - { build: macos,    os: macos-latest, rust: stable }
