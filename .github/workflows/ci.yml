@@ -25,6 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         build: [macos, linux, linux32, win64-msvc, win64-gnu, win32-msvc, win32-gnu, msrv, beta, nightly, arm32, arm64, mips32, mips64]
+        test_flags: ['', '--no-default-features', '--all-features', '--features="serde substr std"']
         include:
           - { build: linux,    os: ubuntu-latest, rust: stable }
           - { build: macos,    os: macos-latest, rust: stable }
@@ -61,9 +62,7 @@ jobs:
       - name: Use Cross
         if: matrix.target != ''
         run: |
-          # FIXME: to work around bugs in latest cross release, install master.
-          # See: https://github.com/rust-embedded/cross/issues/357
-          cargo install --git https://github.com/rust-embedded/cross
+          cargo install cross
           echo "::set-env name=CARGO::cross"
           echo "::set-env name=TARGET::--target ${{ matrix.target }}"
 
@@ -72,17 +71,8 @@ jobs:
           echo "cargo command is: ${{ env.CARGO }}"
           echo "target flag is: ${{ env.TARGET }}"
 
-      - name: Test --no-default-features
-        run: ${{ env.CARGO }} test --no-default-features --verbose  ${{ env.TARGET }}
-
-      - name: Test default features
-        run: ${{ env.CARGO }} test --verbose  ${{ env.TARGET }}
-
-      - name: Test features=serde std substr
-        run: ${{ env.CARGO }} test --verbose --features="serde substr std" ${{ env.TARGET }}
-
-      - name: Test --all-features
-        run: ${{ env.CARGO }} test --all-features --verbose ${{ env.TARGET }}
+      - name: Test ${{ matrix.test_flags }}
+        run: ${{ env.CARGO }} test --verbose ${{ env.TARGET }} ${{ matrix.test_flags }}
 
   loom:
     name: Loom tests
