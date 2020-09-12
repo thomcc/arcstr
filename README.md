@@ -83,7 +83,7 @@ The following cargo features are available. Only `substr` is on by default curre
 
 While this crate does contain a decent amount of unsafe code, we justify this in the following ways:
 
-1. We have a very high test coverage ratio (essentially only OOM and a case where we handle out-of-memory and a particularly pathologic ).
+1. We have a very high test coverage ratio (essentially the only uncovered functions are the out-of-memory handler (which just calls `alloc::handle_alloc_error`), and an extremely pathological integer overflow where we just abort).
 2. All tests pass under various sanitizers: `asan`, `msan`, `tsan`, and `miri`.
 3. We have a few [`loom`](https://crates.io/crates/loom) models although I'd love to have more.
 4. Our tests pass on a ton of different targets (thanks to [`cross`](https://github.com/rust-embedded/cross/) for many of these possible — easy even):
