@@ -4,6 +4,7 @@
 [![codecov](https://codecov.io/gh/thomcc/arcstr/branch/main/graph/badge.svg)](https://codecov.io/gh/thomcc/arcstr)
 [![Docs](https://docs.rs/arcstr/badge.svg)](https://docs.rs/arcstr)
 [![Latest Version](https://img.shields.io/crates/v/arcstr.svg)](https://crates.io/crates/arcstr)
+![Minimum Rust Version](https://img.shields.io/badge/MSRV%201.43-blue.svg)
 
 This crate defines `ArcStr`, a reference counted string type. It's essentially trying to be a better `Arc<str>` or `Arc<String>`, at least for most use cases.
 
@@ -91,20 +92,10 @@ While this crate does contain a decent amount of unsafe code, we justify this in
     - Windows 32-bit and 64-bit, on both GNU and MSVC toolchains.
     - MacOS on x86_64.
 
-Additionally, we test on Rust stable, beta, nightly, and our MSRV (1.43.0, see below for our MSRV stability policy).
+Additionally, we test on Rust stable, beta, nightly, and our MSRV (see badge above for MSRV).
 
 #### Supported platforms
 
 Note that the above is *not* a list of supported platforms. In general I expect `arcstr` to support all platform's Rust supports, except for ones with `target_pointer_width="16"`, which *should* work if you turn off the `substr` feature. That said, if you'd like me to add a platform to the CI coverage to ensure it doesn't break, just ask\* (although, if it's harder than adding a line for another `cross` target, I'll probably need you to justify why it's likely to not be covered by the existing platform tests).
 
 \* This is why there are riscv64.
-
-## MSRV policy
-
-Currently our MSRV is `1.43.0` (If this somehow gets out of date, check [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)).
-
-Note that pre-1.0 MSRV increases will be considered a major change e.g. `0.N.x` => `0.M.0` where `M >= N+1`.
-
-However, once we hit 1.0 (if there's a sufficiently compelling need) it's likely that I'll only treat it as a minor change, e.g. `1.N.x` => `1.M.0`, with the limitation that I'll not do this before the version is well supported (for example, available on debian stable, and the like).
-
-That said, I'm not fully married to this plan yet, so let me know if a policy like this would prevent you from using `arcstr`.
