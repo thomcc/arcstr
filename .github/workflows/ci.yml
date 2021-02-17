@@ -1,8 +1,12 @@
 name: CI
 
 on:
-  push: {}
-  pull_request: {}
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
   schedule:
   - cron: '00 01 * * *'
 
@@ -58,8 +62,8 @@ jobs:
         if: matrix.target != ''
         run: |
           cargo install cross
-          echo "::set-env name=CARGO::cross"
-          echo "::set-env name=TARGET::--target ${{ matrix.target }}"
+          echo "CARGO=cross" >> $GITHUB_ENV
+          echo "TARGET=--target ${{ matrix.target }}" >> $GITHUB_ENV
 
       - name: Show command used for Cargo
         run: |
