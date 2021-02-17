@@ -8,7 +8,7 @@ on:
     branches:
       - main
   schedule:
-  - cron: '00 01 * * *'
+    - cron: "00 01 * * *"
 
 env:
   RUST_BACKTRACE: 1
@@ -20,32 +20,83 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       CARGO: cargo
-      TARGET: ''
+      TARGET: ""
     strategy:
       fail-fast: false
       matrix:
-        build: [macos, linux, linux32, win64-msvc, win64-gnu, win32-msvc, win32-gnu, msrv, beta, nightly, arm32, arm64, mips32, mips64]
+        build:
+          - macos
+          - linux
+          - linux32
+          - win64-msvc
+          - win64-gnu
+          - win32-msvc
+          - win32-gnu
+          - msrv
+          - beta
+          - nightly
+          - arm32
+          - arm64
+          - mips32
+          - mips64
         include:
-          - { build: linux,    os: ubuntu-latest, rust: stable }
-          - { build: macos,    os: macos-latest, rust: stable }
-          - { build: win64-msvc, os: windows-2019, rust: stable }
-          - { build: win64-gnu,  os: windows-2019, rust: stable-x86_64-gnu }
-          - { build: win32-msvc, os: windows-2019, rust: stable-i686-msvc }
-          - { build: win32-gnu,  os: windows-2019, rust: stable-i686-gnu }
+          - build: linux
+            os: ubuntu-latest
+            rust: stable
+          - build: macos
+            os: macos-latest
+            rust: stable
+          - build: win64-msvc
+            os: windows-2019
+            rust: stable
+          - build: win64-gnu
+            os: windows-2019
+            rust: stable-x86_64-gnu
+          - build: win32-msvc
+            os: windows-2019
+            rust: stable-i686-msvc
+          - build: win32-gnu
+            os: windows-2019
+            rust: stable-i686-gnu
           # Update the number in README if you bump MSRV
-          - { build: msrv,     os: ubuntu-latest, rust: '1.43.0' }
-          - { build: beta,     os: ubuntu-latest, rust: beta }
-          - { build: nightly,  os: ubuntu-latest, rust: nightly }
-          - { build: linux32,  os: ubuntu-latest, rust: stable, target: i686-unknown-linux-gnu }
-          # these should prob. be more generic arm targets and not android
-          - { build: arm32,    os: ubuntu-latest, rust: stable, target: armv7-linux-androideabi }
-          - { build: arm64,    os: ubuntu-latest, rust: stable, target: aarch64-linux-android }
-          # Mips is big endian. Nothing currently in here cares... but I have big dreams, you see?
-          - { build: mips32,   os: ubuntu-latest, rust: stable, target: mips-unknown-linux-gnu }
-          - { build: mips64,   os: ubuntu-latest, rust: stable, target: mips64-unknown-linux-gnuabi64 }
-          # Requested by a user, not sure if it adds anything we aren't already
+          - build: msrv
+            os: ubuntu-latest
+            rust: "1.43.0"
+          - build: beta
+            os: ubuntu-latest
+            rust: beta
+          - build: nightly
+            os: ubuntu-latest
+            rust: nightly
+          - build: linux32
+            os: ubuntu-latest
+            rust: stable
+            target: i686-unknown-linux-gnu
+          # These should prob. be more generic arm targets and not android.
+          - build: arm32
+            os: ubuntu-latest
+            rust: stable
+            target: armv7-linux-androideabi
+          - build: arm64
+            os: ubuntu-latest
+            rust: stable
+            target: aarch64-linux-android
+          # Mips is big endian. Nothing currently in here cares... but will if I
+          # ever get around to that `key` stuff.
+          - build: mips32
+            os: ubuntu-latest
+            rust: stable
+            target: mips-unknown-linux-gnu
+          - build: mips64
+            os: ubuntu-latest
+            rust: stable
+            target: mips64-unknown-linux-gnuabi64
+          # Requested by a user not sure if it adds anything we aren't already
           # testing but it's easy enough so *shrug*.
-          - { build: riscv,    os: ubuntu-latest, rust: stable, target: riscv64gc-unknown-linux-gnu }
+          - build: riscv
+            os: ubuntu-latest
+            rust: stable
+            target: riscv64gc-unknown-linux-gnu
 
     steps:
       - uses: actions/checkout@v2
@@ -183,7 +234,8 @@ jobs:
         # could do this instead of repeating 3x in the test invocation, but lets not be wasteful
         # test_flags: ['--features="std serde substr"', '--no-default-features', '--all-features']
         include:
-          - { sanitizer: memory, extra_rustflags: '-Zsanitizer-memory-track-origins' }
+          - sanitizer: memory
+            extra_rustflags: "-Zsanitizer-memory-track-origins"
     steps:
       - uses: actions/checkout@v2
         with:
@@ -221,4 +273,3 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1
-
