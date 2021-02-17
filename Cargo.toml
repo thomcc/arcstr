@@ -7,7 +7,13 @@ description = "A better reference-counted string type, with zero-cost (allocatio
 license = "Apache-2.0 OR MIT OR Zlib"
 readme = "README.md"
 keywords = ["arc", "refcount", "arc_str", "rc_str", "string"]
-categories = ["concurrency", "memory-management", "data-structures", "no-std", "rust-patterns"]
+categories = [
+    "concurrency",
+    "memory-management",
+    "data-structures",
+    "no-std",
+    "rust-patterns",
+]
 repository = "https://github.com/thomcc/arcstr"
 documentation = "https://docs.rs/arcstr"
 homepage = "https://github.com/thomcc/arcstr"
@@ -22,11 +28,11 @@ substr-usize-indices = ["substr"]
 serde = { version = "1", default-features = false, optional = true }
 
 [dev-dependencies]
-serde_test = {version = "1", default-features=false}
-memoffset = "0.5"
+serde_test = { version = "1", default-features = false }
+memoffset = "0.6"
 
 [target.'cfg(loom)'.dev-dependencies]
-loom = { version = "0.3" }
+loom = { version = "0.4" }
 
 [package.metadata.docs.rs]
 features = ["std", "substr"]
