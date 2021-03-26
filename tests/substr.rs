@@ -4,6 +4,8 @@
     // yep, we create owned instance just for comparison, to test comparison
     // with owned instacnces.
     clippy::cmp_owned,
+    // Deliberate
+    clippy::redundant_slicing,
 )]
 #![cfg(feature = "substr")]
 use arcstr::{ArcStr, Substr};
