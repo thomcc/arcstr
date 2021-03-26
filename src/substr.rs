@@ -3,6 +3,8 @@
     clippy::partialeq_ne_impl,
 // This is a really annoying clippy lint, since it's required for so many cases...
     clippy::cast_ptr_alignment,
+// For macros
+    clippy::redundant_slicing,
 )]
 use crate::ArcStr;
 use core::ops::{Range, RangeBounds};
