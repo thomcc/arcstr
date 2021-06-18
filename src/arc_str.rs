@@ -812,7 +812,7 @@ impl ThinInner {
             debug_assert!(LenFlags::from_len_static(num_bytes, false).is_some());
             let lf = LenFlags::from_len_static_raw(num_bytes, false);
             debug_assert_eq!(lf.len(), num_bytes);
-            debug_assert_eq!(lf.is_static(), false);
+            debug_assert!(!lf.is_static());
 
             core::ptr::write(&mut (*ptr).len_flags, lf);
             core::ptr::write(&mut (*ptr).strong, AtomicUsize::new(1));
