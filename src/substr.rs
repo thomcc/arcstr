@@ -170,11 +170,8 @@ impl Substr {
             Bound::Unbounded => a.len(),
         };
         let _ = &a.as_str()[begin..end];
-        if end == begin {
-            Self::new()
-        } else {
-            Self(ArcStr::clone(a), to_idx(begin), to_idx(end))
-        }
+
+        Self(ArcStr::clone(a), to_idx(begin), to_idx(end))
     }
 
     /// Extract a substr of this substr.
@@ -226,12 +223,9 @@ impl Substr {
         }
         debug_assert!(self.0.get(new_begin..new_end).is_some());
 
-        if new_end == new_begin {
-            Self::new()
-        } else {
-            debug_assert!(new_begin <= (Idx::MAX as usize) && new_end <= (Idx::MAX as usize));
-            Self(ArcStr::clone(&self.0), new_begin as Idx, new_end as Idx)
-        }
+        debug_assert!(new_begin <= (Idx::MAX as usize) && new_end <= (Idx::MAX as usize));
+
+        Self(ArcStr::clone(&self.0), new_begin as Idx, new_end as Idx)
     }
 
     /// Extract a string slice containing our data.
