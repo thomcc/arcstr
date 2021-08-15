@@ -103,4 +103,5 @@ pub mod _private {
         pub a: &'static Arr,
     }
     pub use crate::arc_str::StaticArcStrInner;
+    pub use core::primitive::{str, u8};
 }
