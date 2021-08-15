@@ -31,15 +31,15 @@ macro_rules! literal {
     ($text:expr) => {{
         // Note: extra scope to reduce the size of what's in `$text`'s scope
         // (note that consts in macros dont have hygene the way let does).
-        const __TEXT: &str = $text;
+        const __TEXT: &$crate::__private::str = $text;
         {
-            const SI: &$crate::_private::StaticArcStrInner<[u8; __TEXT.len()]> = unsafe {
+            const SI: &$crate::_private::StaticArcStrInner<[$crate::__private::u8; __TEXT.len()]> = unsafe {
                 &$crate::_private::StaticArcStrInner {
                     len_flags: __TEXT.len() << 1,
                     count: 0,
                     // See comment for `_private::ConstPtrDeref` for what the hell's
                     // going on here.
-                    data: *$crate::_private::ConstPtrDeref::<[u8; __TEXT.len()]> {
+                    data: *$crate::_private::ConstPtrDeref::<[$crate::__private::u8; __TEXT.len()]> {
                         p: __TEXT.as_ptr(),
                     }
                     .a,
@@ -103,7 +103,7 @@ macro_rules! format {
 #[cfg(feature = "substr")]
 macro_rules! literal_substr {
     ($text:expr) => {{
-        const __S: &str = $text;
+        const __S: &$crate::__private::str = $text;
         {
             const PARENT: $crate::ArcStr = $crate::literal!(__S);
             const SUBSTR: $crate::Substr =
