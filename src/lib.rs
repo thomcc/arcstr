@@ -98,6 +98,7 @@ pub mod _private {
     //
     // Anyway, this trick is courtesy of rodrimati1992 (that means you have to
     // blame them if it blows up :p).
+    #[repr(C)]
     pub union ConstPtrDeref<Arr: Copy + 'static> {
         pub p: *const u8,
         pub a: &'static Arr,
