@@ -103,7 +103,7 @@ macro_rules! format {
 #[cfg(feature = "substr")]
 macro_rules! literal_substr {
     ($text:expr) => {{
-        const __S: &$crate::__private::str = $text;
+        const __S: &$crate::_private::str = $text;
         {
             const PARENT: $crate::ArcStr = $crate::literal!(__S);
             const SUBSTR: $crate::Substr =
