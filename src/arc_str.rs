@@ -141,6 +141,32 @@ impl ArcStr {
         EMPTY
     }
 
+    /// Attempt to copy the provided string into a newly allocated `ArcStr`, but
+    /// return `None` if we cannot allocate the required memory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    ///
+    /// # fn do_stuff_with(s: ArcStr) {}
+    ///
+    /// let some_big_str = "please pretend this is a very long string";
+    /// if let Some(s) = ArcStr::try_alloc(some_big_str) {
+    ///     do_stuff_with(s);
+    /// } else {
+    ///     // Complain about allocation failure, somehow.
+    /// }
+    /// ```
+    #[inline]
+    pub fn try_alloc(copy_from: &str) -> Option<Self> {
+        if let Ok(inner) = ThinInner::try_allocate(copy_from) {
+            Some(Self(inner))
+        } else {
+            None
+        }
+    }
+
     /// Extract a string slice containing our data.
     ///
     /// Note: This is an equivalent to our `Deref` implementation, but can be
@@ -788,13 +814,23 @@ const EMPTY: ArcStr = literal!("");
 
 impl ThinInner {
     fn allocate(data: &str) -> NonNull<Self> {
+        match Self::try_allocate(data) {
+            Ok(v) => v,
+            Err(None) => alloc_overflow(),
+            Err(Some(layout)) => alloc::alloc::handle_alloc_error(layout),
+        }
+    }
+
+    // returns `Err(Some(l))` if we failed to allocate that layout, and
+    // `Err(None)` for integer overflow when computing layout.
+    fn try_allocate(data: &str) -> Result<NonNull<Self>, Option<Layout>> {
         const ALIGN: usize = align_of::<ThinInner>();
 
         let num_bytes = data.len();
         debug_assert_ne!(num_bytes, 0);
         let mo = OFFSET_DATA;
         if num_bytes >= (isize::MAX as usize) - (mo + ALIGN) {
-            alloc_overflow();
+            return Err(None);
         }
 
         unsafe {
@@ -803,7 +839,7 @@ impl ThinInner {
 
             let alloced = alloc::alloc::alloc(layout);
             if alloced.is_null() {
-                alloc::alloc::handle_alloc_error(layout);
+                return Err(Some(layout));
             }
 
             let ptr = alloced as *mut ThinInner;
@@ -825,7 +861,7 @@ impl ThinInner {
 
             core::ptr::copy_nonoverlapping(data.as_ptr(), alloced.add(mo), num_bytes);
 
-            NonNull::new_unchecked(ptr)
+            Ok(NonNull::new_unchecked(ptr))
         }
     }
     #[inline]

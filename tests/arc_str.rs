@@ -333,3 +333,9 @@ fn test_froms_more() {
     let astr2 = ArcStr::from("foobar");
     assert!(ArcStr::ptr_eq(&astr2, &ArcStr::from(&astr2)))
 }
+
+#[test]
+fn try_allocate() {
+    assert_eq!(ArcStr::try_alloc("foo").as_deref(), Some("foo"));
+    // TODO: how to test the error cases here?
+}
