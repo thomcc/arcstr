@@ -32,7 +32,7 @@ serde_test = { version = "1", default-features = false }
 memoffset = "0.6"
 
 [target.'cfg(loom)'.dev-dependencies]
-loom = { version = "0.4" }
+loom = "0.5.6"
 
 [package.metadata.docs.rs]
 features = ["std", "substr"]
