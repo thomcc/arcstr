@@ -53,9 +53,6 @@ macro_rules! literal {
 
 /// Conceptually equivalent to `ArcStr::from(format!("...", args...))`.
 ///
-/// Currently, the only difference here is that when used with no formatting
-/// args, this behaves equivalently to [`arcstr::literal!`](crate::literal).
-///
 /// In the future, this will be implemented in such a way to avoid an additional
 /// string copy which is required by the `from` operation.
 ///
@@ -67,12 +64,8 @@ macro_rules! literal {
 /// ```
 #[macro_export]
 macro_rules! format {
-    ($text:expr $(,)?) => {
-        // prevent use as const, but keep cheap.
-        $crate::ArcStr::from($crate::literal!($text))
-    };
-    ($text:expr, $($toks:tt)+) => {
-        $crate::ArcStr::from($crate::alloc::fmt::format($crate::core::format_args!($text, $($toks)+)))
+    ($($toks:tt)*) => {
+        $crate::ArcStr::from($crate::alloc::fmt::format($crate::core::format_args!($($toks)*)))
     };
 }
 
@@ -133,6 +126,12 @@ mod test {
             assert_eq!(test, "foo");
             let test2 = crate::format!("foo {}", 123);
             assert_eq!(test2, "foo 123");
+            #[cfg(not(msrv))]
+            {
+                let foo = "abc";
+                let test3 = crate::format!("foo {foo}");
+                assert_eq!(test3, "foo abc");
+            }
         }
     }
 }
