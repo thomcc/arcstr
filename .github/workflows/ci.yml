@@ -11,7 +11,12 @@ on:
     - cron: "00 01 * * *"
 
 env:
-  RUST_BACKTRACE: 1
+  RUST_BACKTRACE: short
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUSTFLAGS: -Dwarnings
+  RUSTDOCFLAGS: -Dwarnings
 
 jobs:
   # Test on stable and MSRV
@@ -76,11 +81,11 @@ jobs:
           - build: arm32
             os: ubuntu-latest
             rust: stable
-            target: armv7-linux-androideabi
+            target: armv7-unknown-linux-gnueabihf
           - build: arm64
             os: ubuntu-latest
             rust: stable
-            target: aarch64-linux-android
+            target: aarch64-unknown-linux-gnu
           # Mips is big endian. Nothing currently in here cares... but will if I
           # ever get around to that `key` stuff.
           - build: mips32
@@ -99,20 +104,18 @@ jobs:
             target: riscv64gc-unknown-linux-gnu
 
     steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
           profile: minimal
           override: true
 
-      - name: Setup cross if needed
+      - uses: taiki-e/install-action@cross
         if: matrix.target != ''
+
+      - if: matrix.target != ''
         run: |
-          cargo install cross
           echo "CARGO=cross" >> $GITHUB_ENV
           echo "TARGET=--target ${{ matrix.target }}" >> $GITHUB_ENV
 
@@ -120,25 +123,17 @@ jobs:
       # versions behaves as expected (for example, `arcstr::format!("{foo}")`)
       # To test this, we put them behind `#[cfg(not(msrv))]`.
       - if: matrix.build == 'msrv'
-        run: |
-          echo "RUSTFLAGS=--cfg msrv" >> $GITHUB_ENV
+        run: echo "RUSTFLAGS=--cfg msrv" >> $GITHUB_ENV
 
-      - name: Show command used for Cargo
-        run: |
+      - run: |
           echo "cargo command is: ${{ env.CARGO }}"
           echo "target flag is: ${{ env.TARGET }}"
+          echo "rustflags are: ${{ env.RUSTFLAGS }}"
 
-      - name: Test --no-default-features
-        run: ${{ env.CARGO }} test --no-default-features --verbose  ${{ env.TARGET }}
-
-      - name: Test default features
-        run: ${{ env.CARGO }} test --verbose  ${{ env.TARGET }}
-
-      - name: Test features=serde std substr
-        run: ${{ env.CARGO }} test --verbose --features="serde substr std" ${{ env.TARGET }}
-
-      - name: Test --all-features
-        run: ${{ env.CARGO }} test --all-features --verbose ${{ env.TARGET }}
+      - run: ${{ env.CARGO }} test --no-default-features --verbose ${{ env.TARGET }}
+      - run: ${{ env.CARGO }} test --verbose ${{ env.TARGET }}
+      - run: ${{ env.CARGO }} test --verbose --features="serde substr std" ${{ env.TARGET }}
+      - run: ${{ env.CARGO }} test --all-features --verbose ${{ env.TARGET }}
 
   loom:
     name: Loom tests
@@ -146,16 +141,14 @@ jobs:
     env:
       RUSTFLAGS: --cfg loom -Dwarnings
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
         with:
-          fetch-depth: 1
-      - uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: stable
-      - name: Run tests with loom (all features)
-        run: cargo test --all-features --lib
-      - name: Run tests with loom (no default features)
-        run: cargo test --no-default-features --lib
+          toolchain: stable
+          profile: minimal
+          override: true
+      - run: cargo test --all-features --lib
+      - run: cargo test --no-default-features --lib
 
   miri:
     name: Miri
@@ -163,19 +156,15 @@ jobs:
     env:
       MIRIFLAGS: -Zmiri-tag-raw-pointers
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
         with:
-          fetch-depth: 1
-      - uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: nightly
-          components: miri
-      - name: Run tests (all features)
-        run: cargo miri test --all-features
-      - name: Run tests (std serde substr)
-        run: cargo miri test --features="std serde substr"
-      - name: Run tests
-        run: cargo miri test
+          toolchain: nightly
+          components: miri, rust-src
+          override: true
+      - run: cargo miri test --all-features
+      - run: cargo miri test --features="std serde substr"
+      - run: cargo miri test
 
   cargo-clippy:
     name: Lint
@@ -183,50 +172,44 @@ jobs:
     env:
       RUSTFLAGS: -Dwarnings
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
         with:
-          fetch-depth: 1
-      - uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: stable
-      - name: Run cargo clippy (default features)
-        run: cargo clippy --workspace --all-targets --verbose
-      - name: Run cargo clippy (all features)
-        run: cargo clippy --workspace --all-targets --verbose --all-features
-      - name: Run cargo clippy (substr w/o u64 index)
-        run: cargo clippy --workspace --all-targets --verbose --features="serde std substr"
-      - name: Run cargo clippy (no features)
-        run: cargo clippy --workspace --all-targets --verbose --no-default-features
+          toolchain: stable
+          components: clippy
+          minimal: true
+          override: true
+      - run: cargo clippy --workspace --all-targets --verbose
+      - run: cargo clippy --workspace --all-targets --verbose --all-features
+      - run: cargo clippy --workspace --all-targets --verbose --features="serde std substr"
+      - run: cargo clippy --workspace --all-targets --verbose --no-default-features
 
   # Ensure patch is formatted.
   fmt:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
         with:
-          fetch-depth: 1
-      - uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: stable
+          toolchain: stable
           components: rustfmt
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+          minimal: true
+          override: true
+      - run: cargo fmt --all -- --check
 
   # Check doc reference links are all valid.
   doc:
     name: Doc check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
         with:
-          fetch-depth: 1
-      - uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: nightly
-      - name: Check docs
-        # Note: needs cargo rustdoc, not cargo doc.
-        run: cargo rustdoc --all-features -- -D warnings
+          toolchain: stable
+          minimal: true
+          override: true
+      - run: cargo doc --features="serde std substr"
 
   sanitizers:
     name: Test sanitizer ${{ matrix.sanitizer }}
@@ -235,7 +218,6 @@ jobs:
       RUST_BACKTRACE: 0
       # only used by asan, but we set it for all of them cuz its easy
       ASAN_OPTIONS: detect_stack_use_after_return=1
-
     strategy:
       fail-fast: false
       matrix:
@@ -245,10 +227,9 @@ jobs:
         include:
           - sanitizer: memory
             extra_rustflags: "-Zsanitizer-memory-track-origins"
+
     steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -270,9 +251,7 @@ jobs:
     name: Generate code coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
+      - uses: actions/checkout@v3
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
