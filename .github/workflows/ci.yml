@@ -116,6 +116,13 @@ jobs:
           echo "CARGO=cross" >> $GITHUB_ENV
           echo "TARGET=--target ${{ matrix.target }}" >> $GITHUB_ENV
 
+      # We have some tests that make sure functionality not present in old
+      # versions behaves as expected (for example, `arcstr::format!("{foo}")`)
+      # To test this, we put them behind `#[cfg(not(msrv))]`.
+      - if: matrix.build == 'msrv'
+        run: |
+          echo "RUSTFLAGS=--cfg msrv" >> $GITHUB_ENV
+
       - name: Show command used for Cargo
         run: |
           echo "cargo command is: ${{ env.CARGO }}"
