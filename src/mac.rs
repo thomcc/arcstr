@@ -18,8 +18,7 @@
 /// assert_eq!("Wow!", arcstr::literal!("Wow!"));
 /// ```
 ///
-/// Another motivating use case is bundled files (eventually this will improve
-/// when `arcstr::Substr` is implemented):
+/// Another motivating use case is bundled files:
 ///
 /// ```rust,ignore
 /// use arcstr::ArcStr;
@@ -28,7 +27,7 @@
 /// ```
 #[macro_export]
 macro_rules! literal {
-    ($text:expr) => {{
+    ($text:expr $(,)?) => {{
         // Note: extra scope to reduce the size of what's in `$text`'s scope
         // (note that consts in macros dont have hygene the way let does).
         const __TEXT: &$crate::_private::str = $text;
@@ -95,7 +94,7 @@ macro_rules! format {
 #[macro_export]
 #[cfg(feature = "substr")]
 macro_rules! literal_substr {
-    ($text:expr) => {{
+    ($text:expr $(,)?) => {{
         const __S: &$crate::_private::str = $text;
         {
             const PARENT: $crate::ArcStr = $crate::literal!(__S);
