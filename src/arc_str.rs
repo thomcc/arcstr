@@ -1036,6 +1036,7 @@ impl Eq for ArcStr {}
 
 macro_rules! impl_peq {
     (@one $a:ty, $b:ty) => {
+        #[allow(clippy::extra_unused_lifetimes)]
         impl<'a> PartialEq<$b> for $a {
             #[inline]
             fn eq(&self, s: &$b) -> bool {
@@ -1061,6 +1062,8 @@ impl_peq! {
     (ArcStr, Box<str>),
     (ArcStr, alloc::sync::Arc<str>),
     (ArcStr, alloc::rc::Rc<str>),
+    (ArcStr, alloc::sync::Arc<String>),
+    (ArcStr, alloc::rc::Rc<String>),
 }
 
 impl PartialOrd for ArcStr {

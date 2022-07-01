@@ -58,6 +58,7 @@ pub struct Substr(ArcStr, Idx, Idx);
 
 #[inline]
 #[cfg(all(target_pointer_width = "64", not(feature = "substr-usize-indices")))]
+#[allow(clippy::let_unit_value)]
 const fn to_idx_const(i: usize) -> Idx {
     const DUMMY: [(); 1] = [()];
     let _ = DUMMY[i >> 32];
@@ -700,6 +701,7 @@ impl<'a> From<Substr> for alloc::borrow::Cow<'a, str> {
 
 macro_rules! impl_peq {
     (@one $a:ty, $b:ty) => {
+        #[allow(clippy::extra_unused_lifetimes)]
         impl<'a> PartialEq<$b> for $a {
             #[inline]
             fn eq(&self, s: &$b) -> bool {

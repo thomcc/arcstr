@@ -63,6 +63,7 @@
 //! It's an open TODO to update this "feature tour" to include `Substr`.
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
+#![allow(unknown_lints)]
 
 #[doc(hidden)]
 pub extern crate alloc;
