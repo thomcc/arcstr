@@ -1,14 +1,14 @@
 //! # Better reference counted strings
 //!
 //! This crate defines [`ArcStr`], a type similar to `Arc<str>`, but with a
-//! number of new features and functionality. Theres a list of
+//! number of new features and functionality. There's a list of
 //! [benefits][benefits] in the `ArcStr` documentation comment which covers some
 //! of the reasons you might want to use it over other alternatives.
 //!
-//! Additionally, if the `substr` feature is enabled (and it is by default) we
+//! Additionally, if the `substr` feature is enabled (and it is by default), we
 //! provide a [`Substr`] type which is essentially a `(ArcStr, Range<usize>)`
 //! with better ergonomics and more functionality, which represents a shared
-//! slice of a "parent" `ArcStr`. (Note that in reality, `u32` is used for the
+//! slice of a "parent" `ArcStr` (note that in reality, `u32` is used for the
 //! index type, but this is not exposed in the API, and can be transparently
 //! changed via a cargo feature).
 //!
@@ -34,8 +34,8 @@
 //!
 //! Or, you can define the literals in normal expressions. Note that these
 //! literals are essentially ["Zero Cost"][zero-cost]. Specifically, below we
-//! not only don't allocate any heap memory to instantiate `wow` or any of the
-//! clones, we also don't have to perform any atomic reads or writes.
+//! not only avoid allocating any heap memory to instantiate `wow` or any of
+//! the clones, we also don't have to perform any atomic reads or writes.
 //!
 //! [zero-cost]: struct.ArcStr.html#what-does-zero-cost-literals-mean
 //!
@@ -51,14 +51,14 @@
 //!
 //! // At some point in the future, we can get a `&'static str` out of one
 //! // of the literal `ArcStr`s too. Note that this returns `None` for
-//! // dynamically allocated `ArcStr`:
+//! // a dynamically allocated `ArcStr`:
 //! let static_str: Option<&'static str> = ArcStr::as_static(&wowzers);
 //! assert_eq!(static_str, Some("Wow!"));
 //! ```
 //!
-//! Of course, this is in addition to the typical functionality you might find a
-//! non-borrowed string type (with the caveat that no way to mutate `ArcStr` is
-//! provided intentionally).
+//! Of course, this is in addition to the typical functionality you might find in a
+//! non-borrowed string type (with the caveat that there is explicitly no way to
+//! mutate `ArcStr`).
 //!
 //! It's an open TODO to update this "feature tour" to include `Substr`.
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -86,11 +86,11 @@ pub use substr::Substr;
 // Not public API, exists for macros
 #[doc(hidden)]
 pub mod _private {
-    // Not part of public API. transmutes a `*const u8` to a `&[u8; N]`.
+    // Not part of public API. Transmutes a `*const u8` to a `&[u8; N]`.
     //
     // As of writing this, it's unstable to directly deref a raw pointer in
-    // const code, we can get around this by transmuting (using the
-    // const-transmute union trick) to tranmute from `*const u8` to `&[u8; N]`,
+    // const code. We can get around this by transmuting (using the
+    // const-transmute union trick) to transmute from `*const u8` to `&[u8; N]`,
     // and the dereferencing that.
     //
     // ... I'm a little surprised that this is allowed, but in general I do
