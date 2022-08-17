@@ -196,7 +196,12 @@ impl ArcStr {
     /// ```
     #[inline]
     pub fn len(&self) -> usize {
-        unsafe { ThinInner::get_len_flags(self.0.as_ptr()).len() }
+        self.get_inner_len_flags().len()
+    }
+
+    #[inline]
+    fn get_inner_len_flags(&self) -> LenFlags {
+        unsafe { ThinInner::get_len_flags(self.0.as_ptr()) }
     }
 
     /// Returns true if this `ArcStr` is empty.
@@ -244,10 +249,9 @@ impl ArcStr {
     /// ```
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
+        let len = self.len();
         let p = self.0.as_ptr();
         unsafe {
-            let len = ThinInner::get_len_flags(p).len();
-
             let data = (p as *const u8).add(OFFSET_DATA);
 
             debug_assert_eq!(&(*p).data as *const [u8; 0] as usize, data as usize);
@@ -378,11 +382,10 @@ impl ArcStr {
     /// ```
     #[inline]
     pub fn strong_count(this: &Self) -> Option<usize> {
-        let this = this.0.as_ptr();
-        if unsafe { ThinInner::get_len_flags(this).is_static() } {
+        if Self::is_static(this) {
             None
         } else {
-            unsafe { Some((*this).strong.load(Ordering::SeqCst)) }
+            Some(unsafe { (*this.0.as_ptr()).strong.load(Ordering::SeqCst) })
         }
     }
 
@@ -413,7 +416,7 @@ impl ArcStr {
     /// ```
     #[inline]
     pub fn is_static(this: &Self) -> bool {
-        unsafe { ThinInner::get_len_flags(this.0.as_ptr()).is_static() }
+        this.get_inner_len_flags().is_static()
     }
 
     /// Returns true if `this` is a "static"/`"literal"` ArcStr. For example, if
@@ -443,7 +446,7 @@ impl ArcStr {
     /// ```
     #[inline]
     pub fn as_static(this: &Self) -> Option<&'static str> {
-        if unsafe { ThinInner::get_len_flags(this.0.as_ptr()).is_static() } {
+        if Self::is_static(this) {
             // We know static strings live forever, so they can have a static lifetime.
             Some(unsafe { &*(this.as_str() as *const str) })
         } else {
@@ -663,22 +666,18 @@ fn out_of_range(arc: &ArcStr, substr: &&str) -> ! {
 impl Clone for ArcStr {
     #[inline]
     fn clone(&self) -> Self {
-        let this = self.0.as_ptr();
-        unsafe {
-            let is_static = ThinInner::get_len_flags(this).is_static();
-            if !is_static {
-                // From libstd's impl:
-                //
-                // > Using a relaxed ordering is alright here, as knowledge of the
-                // > original reference prevents other threads from erroneously deleting
-                // > the object.
-                //
-                // See: https://doc.rust-lang.org/src/alloc/sync.rs.html#1073
-                let n = (*this).strong.fetch_add(1, Ordering::Relaxed);
-                // Protect against aggressive leaking of Arcs causing us to overflow `strong`.
-                if n > (isize::MAX as usize) {
-                    abort();
-                }
+        if !Self::is_static(self) {
+            // From libstd's impl:
+            //
+            // > Using a relaxed ordering is alright here, as knowledge of the
+            // > original reference prevents other threads from erroneously deleting
+            // > the object.
+            //
+            // See: https://doc.rust-lang.org/src/alloc/sync.rs.html#1073
+            let n = unsafe { (*self.0.as_ptr()).strong.fetch_add(1, Ordering::Relaxed) };
+            // Protect against aggressive leaking of Arcs causing us to overflow `strong`.
+            if n > (isize::MAX as usize) {
+                abort();
             }
         }
         Self(self.0)
@@ -688,11 +687,11 @@ impl Clone for ArcStr {
 impl Drop for ArcStr {
     #[inline]
     fn drop(&mut self) {
+        if Self::is_static(self) {
+            return;
+        }
         let this = self.0.as_ptr();
         unsafe {
-            if ThinInner::get_len_flags(this).is_static() {
-                return;
-            }
             if (*this).strong.fetch_sub(1, Ordering::Release) == 1 {
                 // `libstd` uses a full acquire fence here but notes that it's
                 // possibly overkill. `triomphe`/`servo_arc` some of firefox ref
@@ -833,34 +832,28 @@ impl ThinInner {
             return Err(None);
         }
 
+        debug_assert!(Layout::from_size_align(num_bytes + mo, ALIGN).is_ok());
+        let layout = unsafe { Layout::from_size_align_unchecked(num_bytes + mo, ALIGN) };
+        let alloced = unsafe { alloc::alloc::alloc(layout) };
+        if alloced.is_null() {
+            return Err(Some(layout));
+        }
+
+        let ptr = alloced as *mut ThinInner;
+        // we actually already checked this above...
+        debug_assert!(LenFlags::from_len_static(num_bytes, false).is_some());
+        let lf = LenFlags::from_len_static_raw(num_bytes, false);
+        debug_assert_eq!(lf.len(), num_bytes);
+        debug_assert!(!lf.is_static());
         unsafe {
-            debug_assert!(Layout::from_size_align(num_bytes + mo, ALIGN).is_ok());
-            let layout = Layout::from_size_align_unchecked(num_bytes + mo, ALIGN);
-
-            let alloced = alloc::alloc::alloc(layout);
-            if alloced.is_null() {
-                return Err(Some(layout));
-            }
-
-            let ptr = alloced as *mut ThinInner;
-
-            // we actually already checked this above...
-            debug_assert!(LenFlags::from_len_static(num_bytes, false).is_some());
-            let lf = LenFlags::from_len_static_raw(num_bytes, false);
-            debug_assert_eq!(lf.len(), num_bytes);
-            debug_assert!(!lf.is_static());
-
             core::ptr::write(&mut (*ptr).len_flags, lf);
             core::ptr::write(&mut (*ptr).strong, AtomicUsize::new(1));
-
             debug_assert_eq!(
                 (alloced as *const u8).wrapping_add(mo),
                 (*ptr).data.as_ptr(),
             );
             debug_assert_eq!(&(*ptr).data as *const _ as *const u8, (*ptr).data.as_ptr());
-
             core::ptr::copy_nonoverlapping(data.as_ptr(), alloced.add(mo), num_bytes);
-
             Ok(NonNull::new_unchecked(ptr))
         }
     }
