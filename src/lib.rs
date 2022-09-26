@@ -76,6 +76,8 @@ mod mac;
 mod arc_str;
 #[cfg(feature = "serde")]
 mod impl_serde;
+#[cfg(feature = "bincode")]
+mod impl_bincode;
 pub use arc_str::ArcStr;
 
 #[cfg(feature = "substr")]
