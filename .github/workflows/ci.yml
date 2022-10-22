@@ -123,7 +123,10 @@ jobs:
       # versions behaves as expected (for example, `arcstr::format!("{foo}")`)
       # To test this, we put them behind `#[cfg(not(msrv))]`.
       - if: matrix.build == 'msrv'
-        run: echo "RUSTFLAGS=--cfg msrv" >> $GITHUB_ENV
+        run: |
+          echo "RUSTFLAGS=--cfg msrv" >> $GITHUB_ENV
+          cargo update
+          cargo clean
 
       - run: |
           echo "cargo command is: ${{ env.CARGO }}"
