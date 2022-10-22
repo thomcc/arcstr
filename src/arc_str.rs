@@ -650,17 +650,14 @@ impl ArcStr {
 #[inline(never)]
 #[cfg(feature = "substr")]
 fn out_of_range(arc: &ArcStr, substr: &&str) -> ! {
-    let arc_start = arc.as_ptr() as usize;
-    let arc_end = arc_start + arc.len();
-    let substr_start = substr.as_ptr() as usize;
-    let substr_end = substr_start + substr.len();
+    let arc_start = arc.as_ptr();
+    let arc_end = arc_start.wrapping_add(arc.len());
+    let substr_start = substr.as_ptr();
+    let substr_end = substr_start.wrapping_add(substr.len());
     panic!(
         "ArcStr over ({:p}..{:p}) does not contain substr over ({:p}..{:p})",
-        arc_start as *const u8,
-        arc_end as *const u8,
-        substr_start as *const u8,
-        substr_end as *const u8,
-    )
+        arc_start, arc_end, substr_start, substr_end,
+    );
 }
 
 impl Clone for ArcStr {
