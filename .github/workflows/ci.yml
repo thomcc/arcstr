@@ -37,7 +37,7 @@ jobs:
           - win64-gnu
           - win32-msvc
           - win32-gnu
-          - msrv
+          # - msrv
           - beta
           - nightly
           - arm32
