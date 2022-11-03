@@ -948,22 +948,19 @@ impl From<ArcStr> for alloc::sync::Arc<str> {
 impl From<alloc::rc::Rc<str>> for ArcStr {
     #[inline]
     fn from(s: alloc::rc::Rc<str>) -> Self {
-        let s: &str = &*s;
-        Self::from(s)
+        Self::from(&*s)
     }
 }
 impl From<alloc::sync::Arc<str>> for ArcStr {
     #[inline]
     fn from(s: alloc::sync::Arc<str>) -> Self {
-        let s: &str = &*s;
-        Self::from(s)
+        Self::from(&*s)
     }
 }
 impl<'a> From<Cow<'a, str>> for ArcStr {
     #[inline]
     fn from(s: Cow<'a, str>) -> Self {
-        let s: &str = &*s;
-        Self::from(s)
+        Self::from(&*s)
     }
 }
 impl<'a> From<&'a ArcStr> for Cow<'a, str> {
