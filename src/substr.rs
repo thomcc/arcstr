@@ -1,11 +1,12 @@
 #![allow(
-// We follow libstd's lead and prefer to define both.
+    // We follow libstd's lead and prefer to define both.
     clippy::partialeq_ne_impl,
-// This is a really annoying clippy lint, since it's required for so many cases...
+    // This is a really annoying clippy lint, since it's required for so many cases...
     clippy::cast_ptr_alignment,
-// For macros
+    // For macros
     clippy::redundant_slicing,
 )]
+#![cfg_attr(feature = "substr-usize-indices", allow(clippy::unnecessary_cast))]
 use crate::ArcStr;
 use core::ops::{Range, RangeBounds};
 
