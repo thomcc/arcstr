@@ -339,3 +339,17 @@ fn try_allocate() {
     assert_eq!(ArcStr::try_alloc("foo").as_deref(), Some("foo"));
     // TODO: how to test the error cases here?
 }
+
+#[test]
+fn repeat_string() {
+    assert_eq!(ArcStr::repeat("", 1000), "");
+    assert_eq!(ArcStr::repeat("AAA", 0), "");
+    assert_eq!(ArcStr::repeat("AAA", 1000), "AAA".repeat(1000));
+    assert_eq!(ArcStr::try_repeat("AAA", usize::MAX), None);
+}
+
+#[test]
+#[should_panic = "capacity overflow"]
+fn repeat_string_panics() {
+    ArcStr::repeat("AAA", usize::MAX);
+}

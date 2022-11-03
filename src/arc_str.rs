@@ -644,6 +644,74 @@ impl ArcStr {
     pub fn substr_using(&self, f: impl FnOnce(&str) -> &str) -> Substr {
         self.substr_from(f(self.as_str()))
     }
+
+    /// Creates an `ArcStr` by repeating the source string `n` times
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if the capacity overflows
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use arcstr::ArcStr;
+    ///
+    /// let source = "A";
+    /// let repeated = ArcStr::try_repeat(source, 10);
+    /// assert_eq!(repeated.unwrap(), "AAAAAAAAAA");
+    /// ```
+    pub fn try_repeat(source: &str, n: usize) -> Option<Self> {
+        // If the source string is empty or the user asked for zero repetitions,
+        // return an empty string
+        if source.is_empty() || n == 0 {
+            return Some(Self::new());
+        }
+
+        // Calculate the capacity for the allocated string
+        let capacity = source.len().checked_mul(n)?;
+        let inner = ThinInner::try_allocate_uninit(capacity).ok()?;
+
+        unsafe {
+            let mut data_ptr = ThinInner::data_ptr(inner);
+            let data_end = data_ptr.add(capacity);
+
+            // Copy `source` into the allocated string `n` times
+            while data_ptr < data_end {
+                core::ptr::copy_nonoverlapping(source.as_ptr(), data_ptr, source.len());
+                data_ptr = data_ptr.add(source.len());
+            }
+        }
+
+        Some(Self(inner))
+    }
+
+    /// Creates an `ArcStr` by repeating the source string `n` times
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the capacity overflows
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    /// ```
+    /// use arcstr::ArcStr;
+    ///
+    /// let source = "A";
+    /// let repeated = ArcStr::repeat(source, 10);
+    /// assert_eq!(repeated, "AAAAAAAAAA");
+    /// ```
+    ///
+    /// A panic upon overflow:
+    /// ```should_panic
+    /// # use arcstr::ArcStr;
+    ///
+    /// // this will panic at runtime
+    /// let huge = ArcStr::repeat("A", usize::MAX);
+    /// ```
+    pub fn repeat(source: &str, n: usize) -> Self {
+        Self::try_repeat(source, n).expect("capacity overflow")
+    }
 }
 
 #[cold]
@@ -817,42 +885,60 @@ impl ThinInner {
         }
     }
 
-    // returns `Err(Some(l))` if we failed to allocate that layout, and
-    // `Err(None)` for integer overflow when computing layout.
-    fn try_allocate(data: &str) -> Result<NonNull<Self>, Option<Layout>> {
+    fn data_ptr(this: NonNull<Self>) -> *mut u8 {
+        unsafe { this.as_ptr().cast::<u8>().add(OFFSET_DATA) }
+    }
+
+    /// Allocates a `ThinInner` where the data segment is uninitialized
+    ///
+    /// Returns `Err(Some(layout))` if we failed to allocate that layout, and
+    /// `Err(None)` for integer overflow when computing layout
+    fn try_allocate_uninit(capacity: usize) -> Result<NonNull<Self>, Option<Layout>> {
         const ALIGN: usize = align_of::<ThinInner>();
 
-        let num_bytes = data.len();
-        debug_assert_ne!(num_bytes, 0);
-        let mo = OFFSET_DATA;
-        if num_bytes >= (isize::MAX as usize) - (mo + ALIGN) {
+        debug_assert_ne!(capacity, 0);
+        if capacity >= (isize::MAX as usize) - (OFFSET_DATA + ALIGN) {
             return Err(None);
         }
 
-        debug_assert!(Layout::from_size_align(num_bytes + mo, ALIGN).is_ok());
-        let layout = unsafe { Layout::from_size_align_unchecked(num_bytes + mo, ALIGN) };
-        let alloced = unsafe { alloc::alloc::alloc(layout) };
-        if alloced.is_null() {
+        debug_assert!(Layout::from_size_align(capacity + OFFSET_DATA, ALIGN).is_ok());
+        let layout = unsafe { Layout::from_size_align_unchecked(capacity + OFFSET_DATA, ALIGN) };
+        let ptr = unsafe { alloc::alloc::alloc(layout) as *mut ThinInner };
+        if ptr.is_null() {
             return Err(Some(layout));
         }
 
-        let ptr = alloced as *mut ThinInner;
         // we actually already checked this above...
-        debug_assert!(LenFlags::from_len_static(num_bytes, false).is_some());
-        let lf = LenFlags::from_len_static_raw(num_bytes, false);
-        debug_assert_eq!(lf.len(), num_bytes);
-        debug_assert!(!lf.is_static());
+        debug_assert!(LenFlags::from_len_static(capacity, false).is_some());
+
+        let length_flags = LenFlags::from_len_static_raw(capacity, false);
+        debug_assert_eq!(length_flags.len(), capacity);
+        debug_assert!(!length_flags.is_static());
+
         unsafe {
-            core::ptr::write(&mut (*ptr).len_flags, lf);
+            core::ptr::write(&mut (*ptr).len_flags, length_flags);
             core::ptr::write(&mut (*ptr).strong, AtomicUsize::new(1));
+
             debug_assert_eq!(
-                (alloced as *const u8).wrapping_add(mo),
+                (ptr as *const u8).wrapping_add(OFFSET_DATA),
                 (*ptr).data.as_ptr(),
             );
             debug_assert_eq!(&(*ptr).data as *const _ as *const u8, (*ptr).data.as_ptr());
-            core::ptr::copy_nonoverlapping(data.as_ptr(), alloced.add(mo), num_bytes);
+
             Ok(NonNull::new_unchecked(ptr))
         }
+    }
+
+    // returns `Err(Some(l))` if we failed to allocate that layout, and
+    // `Err(None)` for integer overflow when computing layout.
+    fn try_allocate(data: &str) -> Result<NonNull<Self>, Option<Layout>> {
+        // Allocate a enough space to hold the given string
+        let uninit = Self::try_allocate_uninit(data.len())?;
+
+        // Copy the given string into the allocation
+        unsafe { core::ptr::copy_nonoverlapping(data.as_ptr(), Self::data_ptr(uninit), data.len()) }
+
+        Ok(uninit)
     }
     #[inline]
     unsafe fn get_len_flags(p: *const ThinInner) -> LenFlags {
