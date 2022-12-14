@@ -297,7 +297,7 @@ impl Substr {
         self.as_str().to_owned()
     }
 
-    /// Unchecked function to cunstruct a [`Substr`] from an [`ArcStr`] and a
+    /// Unchecked function to construct a [`Substr`] from an [`ArcStr`] and a
     /// byte range. Direct usage of this function is largely discouraged in
     /// favor of [`ArcStr::substr`][crate::ArcStr::substr], or the
     /// [`literal_substr!`](crate::literal_substr) macro, which currently is
