@@ -160,7 +160,7 @@ impl ArcStr {
     /// ```
     #[inline]
     pub fn try_alloc(copy_from: &str) -> Option<Self> {
-        if let Ok(inner) = ThinInner::try_allocate(copy_from) {
+        if let Ok(inner) = ThinInner::try_allocate(copy_from, false) {
             Some(Self(inner))
         } else {
             None
@@ -196,12 +196,12 @@ impl ArcStr {
     /// ```
     #[inline]
     pub fn len(&self) -> usize {
-        self.get_inner_len_flags().len()
+        self.get_inner_len_flag().uint_part()
     }
 
     #[inline]
-    fn get_inner_len_flags(&self) -> LenFlags {
-        unsafe { ThinInner::get_len_flags(self.0.as_ptr()) }
+    fn get_inner_len_flag(&self) -> PackedFlagUint {
+        unsafe { ThinInner::get_len_flag(self.0.as_ptr()) }
     }
 
     /// Returns true if this `ArcStr` is empty.
@@ -252,10 +252,8 @@ impl ArcStr {
         let len = self.len();
         let p = self.0.as_ptr();
         unsafe {
-            let data = (p as *const u8).add(OFFSET_DATA);
-
-            debug_assert_eq!(&(*p).data as *const [u8; 0] as usize, data as usize);
-
+            let data = p.cast::<u8>().add(OFFSET_DATA);
+            debug_assert_eq!(core::ptr::addr_of!((*p).data).cast::<u8>(), data);
             core::slice::from_raw_parts(data, len)
         }
     }
@@ -382,11 +380,90 @@ impl ArcStr {
     /// ```
     #[inline]
     pub fn strong_count(this: &Self) -> Option<usize> {
-        if Self::is_static(this) {
+        let cf = Self::load_count_flag(this, Ordering::Acquire)?;
+        if cf.flag_part() {
             None
         } else {
-            Some(unsafe { (*this.0.as_ptr()).strong.load(Ordering::SeqCst) })
+            Some(cf.uint_part())
         }
+    }
+
+    /// Safety: Unsafe to use `this` is stored in static memory (check
+    /// `Self::has_static_lenflag`)
+    #[inline]
+    unsafe fn load_count_flag_raw(this: &Self, ord_if_needed: Ordering) -> PackedFlagUint {
+        PackedFlagUint::from_encoded(unsafe { (*this.0.as_ptr()).count_flag.load(ord_if_needed) })
+    }
+
+    #[inline]
+    fn load_count_flag(this: &Self, ord_if_needed: Ordering) -> Option<PackedFlagUint> {
+        if Self::has_static_lenflag(this) {
+            None
+        } else {
+            let count_and_flag = PackedFlagUint::from_encoded(unsafe {
+                (*this.0.as_ptr()).count_flag.load(ord_if_needed)
+            });
+            Some(count_and_flag)
+        }
+    }
+
+    /// Convert the `ArcStr` into a `'static` `ArcStr`, even if it was
+    /// originally created from runtime values.
+    ///
+    /// This is useful
+    ///
+    /// If the `ArcStr` is already static, then
+    #[inline]
+    pub fn leak(this: &Self) -> &'static str {
+        if Self::has_static_lenflag(this) {
+            return unsafe { Self::to_static_unchecked(this) };
+        }
+        let is_static_count = unsafe {
+            // Not sure about ordering, maybe relaxed would be fine.
+            Self::load_count_flag_raw(this, Ordering::Acquire)
+        };
+        if is_static_count.flag_part() {
+            return unsafe { Self::to_static_unchecked(this) };
+        }
+        unsafe { Self::become_static(this, is_static_count.uint_part() == 1) };
+        debug_assert!(Self::is_static(this));
+        unsafe { Self::to_static_unchecked(this) }
+    }
+
+    unsafe fn become_static(this: &Self, is_unique: bool) {
+        if is_unique {
+            core::ptr::addr_of_mut!((*this.0.as_ptr()).count_flag).write(AtomicUsize::new(
+                PackedFlagUint::new_raw(true, 1).encoded_value(),
+            ));
+            let lenp = core::ptr::addr_of_mut!((*this.0.as_ptr()).len_flag);
+            debug_assert!(!lenp.read().flag_part());
+            lenp.write(lenp.read().with_flag(true));
+        } else {
+            let flag_bit = PackedFlagUint::new_raw(true, 0).encoded_value();
+            let atomic_count_flag = &*core::ptr::addr_of!((*this.0.as_ptr()).count_flag);
+            atomic_count_flag.fetch_or(flag_bit, Ordering::Release);
+        }
+    }
+
+    #[inline]
+    unsafe fn to_static_unchecked(this: &Self) -> &'static str {
+        unsafe { &*Self::str_ptr(this) }
+    }
+
+    #[inline]
+    fn bytes_ptr(this: &Self) -> *const [u8] {
+        let len = this.get_inner_len_flag().uint_part();
+        unsafe {
+            let p: *const ThinInner = this.0.as_ptr();
+            let data = p.cast::<u8>().add(OFFSET_DATA);
+            debug_assert_eq!(core::ptr::addr_of!((*p).data).cast::<u8>(), data,);
+            core::ptr::slice_from_raw_parts(data, len)
+        }
+    }
+
+    #[inline]
+    fn str_ptr(this: &Self) -> *const str {
+        Self::bytes_ptr(this) as *const str
     }
 
     /// Returns true if `this` is a "static" ArcStr. For example, if it was
@@ -416,7 +493,32 @@ impl ArcStr {
     /// ```
     #[inline]
     pub fn is_static(this: &Self) -> bool {
-        this.get_inner_len_flags().is_static()
+        // We align this to 16 bytes and keep the `is_static` flags in the same
+        // place. In theory this means that if `cfg(target_feature = "avx")`
+        // (where aligned 16byte loads are atomic), the compiler *could*
+        // implement this function using the equivalent of:
+        // ```
+        // let vec = _mm_load_si128(self.0.as_ptr().cast());
+        // let mask = _mm_movemask_pd(_mm_srli_epi64(vac, 63));
+        // mask != 0
+        // ```
+        // and that's all; one load, no branching. (I don't think it *does*, but
+        // I haven't checked so I'll be optimistic and keep the `#[repr(align)]`
+        // -- hey, maybe the CPU can peephole-optimize it).
+        //
+        // That said, unless I did it in asm, *I* can't implement it that way,
+        // since Rust's semantics don't allow me to make that change
+        // optimization on my own (that load isn't considered atomic, for
+        // example).
+        this.get_inner_len_flag().flag_part()
+            || unsafe { Self::load_count_flag_raw(this, Ordering::Relaxed).flag_part() }
+    }
+
+    /// This is true for any `ArcStr` that has been static from the time when it
+    /// was created. It's cheaper than `has_static_rcflag`.
+    #[inline]
+    fn has_static_lenflag(this: &Self) -> bool {
+        this.get_inner_len_flag().flag_part()
     }
 
     /// Returns true if `this` is a "static"/`"literal"` ArcStr. For example, if
@@ -669,7 +771,7 @@ impl ArcStr {
 
         // Calculate the capacity for the allocated string
         let capacity = source.len().checked_mul(n)?;
-        let inner = ThinInner::try_allocate_uninit(capacity).ok()?;
+        let inner = ThinInner::try_allocate_uninit(capacity, false).ok()?;
 
         unsafe {
             let mut data_ptr = ThinInner::data_ptr(inner);
@@ -731,6 +833,15 @@ fn out_of_range(arc: &ArcStr, substr: &&str) -> ! {
 impl Clone for ArcStr {
     #[inline]
     fn clone(&self) -> Self {
+        // match Self::load_count_flag_raw(self, Ordering::Relaxed) {
+        //     // We were static
+        //     None => return Some(self.0),
+        //     Some(count) => {
+        //         if count.flag_part() {
+        //             return Some(self.0);
+        //         }
+        //     }
+        // }
         if !Self::is_static(self) {
             // From libstd's impl:
             //
@@ -739,15 +850,25 @@ impl Clone for ArcStr {
             // > the object.
             //
             // See: https://doc.rust-lang.org/src/alloc/sync.rs.html#1073
-            let n = unsafe { (*self.0.as_ptr()).strong.fetch_add(1, Ordering::Relaxed) };
-            // Protect against aggressive leaking of Arcs causing us to overflow `strong`.
-            if n > (isize::MAX as usize) {
+            let n: PackedFlagUint = PackedFlagUint::from_encoded(unsafe {
+                let step = PackedFlagUint::FALSE_ONE.encoded_value();
+                (*self.0.as_ptr())
+                    .count_flag
+                    .fetch_add(step, Ordering::Relaxed)
+            });
+            // Protect against aggressive leaking of Arcs causing us to
+            // overflow. Technically, we could probably transition it to static
+            // here, but I haven't thought it through.
+            if n.uint_part() > RC_MAX && !n.flag_part() {
+                // let val = PackedFlagUint::new_raw(true, 0).encoded_value();
+                // unsafe { (*self.0.as_ptr()).count_flag.fetch_or(val, Ordering::Release) };
                 abort();
             }
         }
         Self(self.0)
     }
 }
+const RC_MAX: usize = (PackedFlagUint::UINT_PART_MAX / 2) as usize;
 
 impl Drop for ArcStr {
     #[inline]
@@ -755,34 +876,16 @@ impl Drop for ArcStr {
         if Self::is_static(self) {
             return;
         }
-        let this = self.0.as_ptr();
         unsafe {
-            if (*this).strong.fetch_sub(1, Ordering::Release) == 1 {
-                // `libstd` uses a full acquire fence here but notes that it's
-                // possibly overkill. `triomphe`/`servo_arc` some of firefox ref
-                // counting uses a load like this.
-                //
-                // These are morally equivalent for this case, the fence being a
-                // bit more obvious and the load having slightly better perf in
-                // some theoretical scenarios... but for our use case both seem
-                // unnecessary.
-                //
-                // The intention behind these is to synchronize with `Release`
-                // writes to `strong` that are happening on other threads. That
-                // is, after the load (or fence), writes (any write, but
-                // specifically writes to any part of `this` are what we care
-                // about) from other threads which happened before the latest
-                // `Release` write to strong will become visible on this thread.
-                //
-                // The reason this feels unnecessary is that our data is
-                // entirely immutable outside `(*this).strong`. There are no
-                // writes we could possibly be interested in.
-                //
-                // That said, I'll keep (the cheaper variant of) it for now for
-                // easier auditing and such... an because I'm not 100% sure that
-                // changing the ordering here wouldn't require changing it for
-                // the fetch_sub above, or the fetch_add in `clone`...
-                let _ = (*this).strong.load(Ordering::Acquire);
+            let this = self.0.as_ptr();
+            let enc = PackedFlagUint::from_encoded(
+                (*this)
+                    .count_flag
+                    .fetch_sub(PackedFlagUint::FALSE_ONE.encoded_value(), Ordering::Release),
+            );
+            // Note: `enc == PackedFlagUint::FALSE_ONE`
+            if enc == PackedFlagUint::FALSE_ONE {
+                let _ = (*this).count_flag.load(Ordering::Acquire);
                 ThinInner::destroy_cold(this)
             }
         }
@@ -799,7 +902,7 @@ impl Drop for ArcStr {
 // static ones to not have any interior mutability, so that `const`s can use
 // them, and so that they may be stored in read-only memory.
 //
-// We do this by keeping a flag in `len_flags` flag to indicate which case we're
+// We do this by keeping a flag in `len_flag` flag to indicate which case we're
 // in, and maintaining the invariant that if we're a `StaticArcStrInner` **we
 // may never access `.strong` in any way or produce a `&ThinInner` pointing to
 // our data**.
@@ -814,23 +917,46 @@ impl Drop for ArcStr {
 // https://github.com/rust-lang/unsafe-code-guidelines/issues/246
 #[repr(C, align(8))]
 struct ThinInner {
-    len_flags: LenFlags,
-    // kind of a misnomer since there are no weak refs rn. XXX ever?
-    strong: AtomicUsize,
+    // Both of these are `PackedFlagUint`s that store `is_static` as the flag.
+    //
+    // The reason it's not just stored in len is because an ArcStr may become
+    // static after creation (via `ArcStr::leak`) and we don't need to do an
+    // atomic load to access the length (and not only because it would mess with
+    // optimization).
+    //
+    // The reason it's not just stored in the count is because it may be UB to
+    // do atomic loads from read-only memory. This is also the reason it's not
+    // stored in a separate atomic, and why doing an atomic load to access the
+    // length wouldn't be acceptable even if compilers were really good.
+    len_flag: PackedFlagUint,
+    count_flag: AtomicUsize,
     data: [u8; 0],
 }
 
 const OFFSET_LENFLAGS: usize = 0;
-const OFFSET_STRONGCOUNT: usize = size_of::<LenFlags>();
-const OFFSET_DATA: usize = OFFSET_STRONGCOUNT + size_of::<AtomicUsize>();
+const OFFSET_COUNTFLAGS: usize = size_of::<PackedFlagUint>();
+const OFFSET_DATA: usize = OFFSET_COUNTFLAGS + size_of::<AtomicUsize>();
 
 // Not public API, exists for macros.
 #[repr(C, align(8))]
 #[doc(hidden)]
 pub struct StaticArcStrInner<Buf> {
-    pub len_flags: usize,
-    pub count: usize,
+    pub len_flag: usize,
+    pub count_flag: usize,
     pub data: Buf,
+}
+
+impl<Buf> StaticArcStrInner<Buf> {
+    #[doc(hidden)]
+    pub const STATIC_COUNT_VALUE: usize = PackedFlagUint::new_raw(true, 1).encoded_value();
+    #[doc(hidden)]
+    #[inline]
+    pub const fn encode_len(v: usize) -> Option<usize> {
+        match PackedFlagUint::new(true, v) {
+            Some(v) => Some(v.encoded_value()),
+            None => None,
+        }
+    }
 }
 
 const _: [(); size_of::<StaticArcStrInner<[u8; 0]>>()] = [(); 2 * size_of::<usize>()];
@@ -847,44 +973,72 @@ const _: [(); align_of::<AtomicUsize>()] = [(); align_of::<usize>()];
 const _: [(); align_of::<AtomicUsize>()] = [(); size_of::<usize>()];
 const _: [(); size_of::<AtomicUsize>()] = [(); size_of::<usize>()];
 
-const _: [(); align_of::<LenFlags>()] = [(); align_of::<usize>()];
-const _: [(); size_of::<LenFlags>()] = [(); size_of::<usize>()];
+const _: [(); align_of::<PackedFlagUint>()] = [(); align_of::<usize>()];
+const _: [(); size_of::<PackedFlagUint>()] = [(); size_of::<usize>()];
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-struct LenFlags(usize);
+struct PackedFlagUint(usize);
+impl PackedFlagUint {
+    const UINT_PART_MAX: usize = (1 << (usize::BITS - 1)) - 1;
+    /// Encodes `false` as the flag and `1` as the uint. Used for a few things,
+    /// such as the amount we `fetch_add` by for refcounting, and so on.
+    const FALSE_ONE: Self = Self::new_raw(false, 1);
 
-impl LenFlags {
     #[inline]
-    const fn len(self) -> usize {
+    const fn new(flag_part: bool, uint_part: usize) -> Option<Self> {
+        if uint_part > Self::UINT_PART_MAX {
+            None
+        } else {
+            Some(Self::new_raw(flag_part, uint_part))
+        }
+    }
+
+    #[inline(always)]
+    const fn new_raw(flag_part: bool, uint_part: usize) -> Self {
+        Self(flag_part as usize | (uint_part << 1))
+    }
+
+    #[inline(always)]
+    const fn uint_part(self) -> usize {
         self.0 >> 1
     }
-    #[inline]
-    const fn is_static(self) -> bool {
-        (self.0 & 1) == 0
+
+    #[inline(always)]
+    const fn flag_part(self) -> bool {
+        (self.0 & 1) != 0
     }
 
-    #[inline]
-    fn from_len_static(l: usize, is_static: bool) -> Option<Self> {
-        l.checked_mul(2).map(|l| Self(l | (!is_static as usize)))
+    #[inline(always)]
+    const fn from_encoded(v: usize) -> Self {
+        Self(v)
     }
-    #[inline]
-    const fn from_len_static_raw(l: usize, is_static: bool) -> Self {
-        Self(l << 1 | (!is_static as usize))
+
+    #[inline(always)]
+    const fn encoded_value(self) -> usize {
+        self.0
+    }
+
+    #[inline(always)]
+    #[must_use]
+    const fn with_flag(self, v: bool) -> Self {
+        Self(v as usize | self.0)
     }
 }
 
 const EMPTY: ArcStr = literal!("");
 
 impl ThinInner {
-    fn allocate(data: &str) -> NonNull<Self> {
-        match Self::try_allocate(data) {
+    #[inline]
+    fn allocate(data: &str, initially_static: bool) -> NonNull<Self> {
+        match Self::try_allocate(data, initially_static) {
             Ok(v) => v,
             Err(None) => alloc_overflow(),
             Err(Some(layout)) => alloc::alloc::handle_alloc_error(layout),
         }
     }
 
+    #[inline]
     fn data_ptr(this: NonNull<Self>) -> *mut u8 {
         unsafe { this.as_ptr().cast::<u8>().add(OFFSET_DATA) }
     }
@@ -893,7 +1047,10 @@ impl ThinInner {
     ///
     /// Returns `Err(Some(layout))` if we failed to allocate that layout, and
     /// `Err(None)` for integer overflow when computing layout
-    fn try_allocate_uninit(capacity: usize) -> Result<NonNull<Self>, Option<Layout>> {
+    fn try_allocate_uninit(
+        capacity: usize,
+        initially_static: bool,
+    ) -> Result<NonNull<Self>, Option<Layout>> {
         const ALIGN: usize = align_of::<ThinInner>();
 
         debug_assert_ne!(capacity, 0);
@@ -909,21 +1066,23 @@ impl ThinInner {
         }
 
         // we actually already checked this above...
-        debug_assert!(LenFlags::from_len_static(capacity, false).is_some());
+        debug_assert!(PackedFlagUint::new(initially_static, capacity).is_some());
 
-        let length_flags = LenFlags::from_len_static_raw(capacity, false);
-        debug_assert_eq!(length_flags.len(), capacity);
-        debug_assert!(!length_flags.is_static());
+        let len_flag = PackedFlagUint::new_raw(initially_static, capacity);
+        debug_assert_eq!(len_flag.uint_part(), capacity);
+        debug_assert_eq!(len_flag.flag_part(), initially_static);
 
         unsafe {
-            core::ptr::write(&mut (*ptr).len_flags, length_flags);
-            core::ptr::write(&mut (*ptr).strong, AtomicUsize::new(1));
+            core::ptr::addr_of_mut!((*ptr).len_flag).write(len_flag);
+
+            let initial_count_flag = PackedFlagUint::new_raw(initially_static, 1);
+            let count_flag: AtomicUsize = AtomicUsize::new(initial_count_flag.encoded_value());
+            core::ptr::addr_of_mut!((*ptr).count_flag).write(count_flag);
 
             debug_assert_eq!(
                 (ptr as *const u8).wrapping_add(OFFSET_DATA),
                 (*ptr).data.as_ptr(),
             );
-            debug_assert_eq!(&(*ptr).data as *const _ as *const u8, (*ptr).data.as_ptr());
 
             Ok(NonNull::new_unchecked(ptr))
         }
@@ -931,9 +1090,10 @@ impl ThinInner {
 
     // returns `Err(Some(l))` if we failed to allocate that layout, and
     // `Err(None)` for integer overflow when computing layout.
-    fn try_allocate(data: &str) -> Result<NonNull<Self>, Option<Layout>> {
+    #[inline]
+    fn try_allocate(data: &str, initially_static: bool) -> Result<NonNull<Self>, Option<Layout>> {
         // Allocate a enough space to hold the given string
-        let uninit = Self::try_allocate_uninit(data.len())?;
+        let uninit = Self::try_allocate_uninit(data.len(), initially_static)?;
 
         // Copy the given string into the allocation
         unsafe { core::ptr::copy_nonoverlapping(data.as_ptr(), Self::data_ptr(uninit), data.len()) }
@@ -941,16 +1101,16 @@ impl ThinInner {
         Ok(uninit)
     }
     #[inline]
-    unsafe fn get_len_flags(p: *const ThinInner) -> LenFlags {
+    unsafe fn get_len_flag(p: *const ThinInner) -> PackedFlagUint {
         debug_assert_eq!(OFFSET_LENFLAGS, 0);
         *p.cast()
     }
 
     #[cold]
     unsafe fn destroy_cold(p: *mut ThinInner) {
-        let lf = Self::get_len_flags(p);
-        debug_assert!(!lf.is_static());
-        let len = lf.len();
+        let lf = Self::get_len_flag(p);
+        let (is_static, len) = (lf.flag_part(), lf.uint_part());
+        debug_assert!(!is_static);
         let layout = {
             let size = len + OFFSET_DATA;
             let align = align_of::<ThinInner>();
@@ -972,7 +1132,7 @@ impl From<&str> for ArcStr {
         if s.is_empty() {
             Self::new()
         } else {
-            Self(ThinInner::allocate(s))
+            Self(ThinInner::allocate(s, false))
         }
     }
 }
@@ -1234,11 +1394,11 @@ mod test {
     fn sasi_layout_check<Buf>() {
         assert!(align_of::<StaticArcStrInner<Buf>>() >= 8);
         assert_eq!(
-            memoffset::offset_of!(StaticArcStrInner<Buf>, count),
-            OFFSET_STRONGCOUNT
+            memoffset::offset_of!(StaticArcStrInner<Buf>, count_flag),
+            OFFSET_COUNTFLAGS
         );
         assert_eq!(
-            memoffset::offset_of!(StaticArcStrInner<Buf>, len_flags),
+            memoffset::offset_of!(StaticArcStrInner<Buf>, len_flag),
             OFFSET_LENFLAGS
         );
         assert_eq!(
@@ -1246,12 +1406,12 @@ mod test {
             OFFSET_DATA
         );
         assert_eq!(
-            memoffset::offset_of!(ThinInner, strong),
-            memoffset::offset_of!(StaticArcStrInner::<Buf>, count),
+            memoffset::offset_of!(ThinInner, count_flag),
+            memoffset::offset_of!(StaticArcStrInner::<Buf>, count_flag),
         );
         assert_eq!(
-            memoffset::offset_of!(ThinInner, len_flags),
-            memoffset::offset_of!(StaticArcStrInner::<Buf>, len_flags),
+            memoffset::offset_of!(ThinInner, len_flag),
+            memoffset::offset_of!(StaticArcStrInner::<Buf>, len_flag),
         );
         assert_eq!(
             memoffset::offset_of!(ThinInner, data),
@@ -1261,8 +1421,11 @@ mod test {
 
     #[test]
     fn verify_type_pun_offsets_sasi_big_bufs() {
-        assert_eq!(memoffset::offset_of!(ThinInner, strong), OFFSET_STRONGCOUNT);
-        assert_eq!(memoffset::offset_of!(ThinInner, len_flags), OFFSET_LENFLAGS);
+        assert_eq!(
+            memoffset::offset_of!(ThinInner, count_flag),
+            OFFSET_COUNTFLAGS,
+        );
+        assert_eq!(memoffset::offset_of!(ThinInner, len_flag), OFFSET_LENFLAGS);
         assert_eq!(memoffset::offset_of!(ThinInner, data), OFFSET_DATA);
 
         assert!(align_of::<ThinInner>() >= 8);

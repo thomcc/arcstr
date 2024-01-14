@@ -34,14 +34,14 @@ macro_rules! literal {
         {
             const SI: &$crate::_private::StaticArcStrInner<[$crate::_private::u8; __TEXT.len()]> = unsafe {
                 &$crate::_private::StaticArcStrInner {
-                    len_flags: __TEXT.len() << 1,
-                    count: 0,
+                    len_flag: match $crate::_private::StaticArcStrInner::<[$crate::_private::u8; __TEXT.len()]>::encode_len(__TEXT.len()) {
+                        Some(len) => len,
+                        None => $crate::core::panic!("impossibly long length")
+                    },
+                    count_flag: $crate::_private::StaticArcStrInner::<[$crate::_private::u8; __TEXT.len()]>::STATIC_COUNT_VALUE,
                     // See comment for `_private::ConstPtrDeref` for what the hell's
                     // going on here.
-                    data: *$crate::_private::ConstPtrDeref::<[$crate::_private::u8; __TEXT.len()]> {
-                        p: __TEXT.as_ptr(),
-                    }
-                    .a,
+                    data: __TEXT.as_ptr().cast::<[$crate::_private::u8; __TEXT.len()]>().read(),
                 }
             };
             const S: $crate::ArcStr = unsafe { $crate::ArcStr::_private_new_from_static_data(SI) };
