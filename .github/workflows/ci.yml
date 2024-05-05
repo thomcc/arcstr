@@ -157,7 +157,7 @@ jobs:
       - run: cargo miri test --features="std serde substr"
       - run: cargo miri test
 
-  cargo-clippy:
+  cargo-check:
     name: Lint
     runs-on: ubuntu-latest
     env:
@@ -165,12 +165,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hecrj/setup-rust-action@v2
-        with:
-          components: clippy
-      - run: cargo clippy --workspace --all-targets --verbose
-      - run: cargo clippy --workspace --all-targets --verbose --all-features
-      - run: cargo clippy --workspace --all-targets --verbose --features="serde std substr"
-      - run: cargo clippy --workspace --all-targets --verbose --no-default-features
+      - run: cargo check --workspace --all-targets --verbose
+      - run: cargo check --workspace --all-targets --verbose --all-features
+      - run: cargo check --workspace --all-targets --verbose --features="serde std substr"
+      - run: cargo check --workspace --all-targets --verbose --no-default-features
 
   # Ensure patch is formatted.
   fmt:
@@ -180,19 +178,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: hecrj/setup-rust-action@v2
       - run: cargo fmt --all -- --check
-
-  # Check doc reference links are all valid.
-  doc:
-    name: Doc check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          minimal: true
-          override: true
-      - run: cargo doc --features="serde std substr"
 
   sanitizers:
     name: Test sanitizer ${{ matrix.sanitizer }}

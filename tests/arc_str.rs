@@ -307,22 +307,22 @@ fn test_froms_more() {
     let cow: Cow<'_, str> = Owned("abcd".into());
     assert_eq!(ArcStr::from(cow), "abcd");
 
-    let cow: Option<Cow<'_, str>> = Some(&arc).map(Cow::from);
+    let cow: Option<Cow<'_, str>> = Some(Cow::from(&arc));
     assert_eq!(cow.as_deref(), Some("asdf"));
 
-    let cow: Option<Cow<'_, str>> = Some(arc).map(Cow::from);
+    let cow: Option<Cow<'_, str>> = Some(Cow::from(arc));
     assert!(matches!(cow, Some(Cow::Owned(_))));
     assert_eq!(cow.as_deref(), Some("asdf"));
 
     let st = { arcstr::literal!("static should borrow") };
     {
-        let cow: Option<Cow<'_, str>> = Some(st.clone()).map(Cow::from);
+        let cow: Option<Cow<'_, str>> = Some(Cow::from(st.clone()));
         assert!(matches!(cow, Some(Cow::Borrowed(_))));
         assert_eq!(cow.as_deref(), Some("static should borrow"));
     }
     // works with any lifetime
     {
-        let cow: Option<Cow<'static, str>> = Some(st.clone()).map(Cow::from);
+        let cow: Option<Cow<'static, str>> = Some(Cow::from(st.clone()));
         assert!(matches!(cow, Some(Cow::Borrowed(_))));
         assert_eq!(cow.as_deref(), Some("static should borrow"));
     }
