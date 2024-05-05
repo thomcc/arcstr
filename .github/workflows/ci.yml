@@ -38,8 +38,8 @@ jobs:
           - nightly
           - arm32
           - arm64
-          - mips32
-          - mips64
+          - ppc32
+          - ppc64
         include:
           - build: linux
             os: ubuntu-latest
@@ -86,16 +86,16 @@ jobs:
             os: ubuntu-latest
             rust: stable
             target: aarch64-unknown-linux-gnu
-          # Mips is big endian. Nothing currently in here cares... but will if I
+          # PPC is big endian. Nothing currently in here cares... but will if I
           # ever get around to that `key` stuff.
-          - build: mips32
+          - build: ppc32
             os: ubuntu-latest
             rust: stable
-            target: mips-unknown-linux-gnu
-          - build: mips64
+            target: powerpc-unknown-linux-gnu
+          - build: ppc64
             os: ubuntu-latest
             rust: stable
-            target: mips64-unknown-linux-gnuabi64
+            target: powerpc64-unknown-linux-gnuabi64
           # Requested by a user not sure if it adds anything we aren't already
           # testing but it's easy enough so *shrug*.
           - build: riscv
