@@ -5,10 +5,6 @@ on:
     branches:
       - main
   pull_request:
-    branches:
-      - main
-  schedule:
-    - cron: "00 01 * * *"
 
 env:
   RUST_BACKTRACE: short
@@ -108,12 +104,10 @@ jobs:
             target: riscv64gc-unknown-linux-gnu
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: hecrj/setup-rust-action@v2
         with:
-          toolchain: ${{ matrix.rust }}
-          profile: minimal
-          override: true
+          rust-version: ${{ matrix.rust }}
 
       - uses: taiki-e/install-action@cross
         if: matrix.target != ''
@@ -145,27 +139,20 @@ jobs:
     env:
       RUSTFLAGS: --cfg loom -Dwarnings
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+      - uses: actions/checkout@v4
+      - uses: hecrj/setup-rust-action@v2
       - run: cargo test --all-features --lib
       - run: cargo test --no-default-features --lib
 
   miri:
     name: Miri
     runs-on: ubuntu-latest
-    env:
-      MIRIFLAGS: -Zmiri-tag-raw-pointers
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: hecrj/setup-rust-action@v2
         with:
-          toolchain: nightly
+          rust-version: nightly
           components: miri, rust-src
-          override: true
       - run: cargo miri test --all-features
       - run: cargo miri test --features="std serde substr"
       - run: cargo miri test
@@ -176,13 +163,10 @@ jobs:
     env:
       RUSTFLAGS: -Dwarnings
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: hecrj/setup-rust-action@v2
         with:
-          toolchain: stable
           components: clippy
-          minimal: true
-          override: true
       - run: cargo clippy --workspace --all-targets --verbose
       - run: cargo clippy --workspace --all-targets --verbose --all-features
       - run: cargo clippy --workspace --all-targets --verbose --features="serde std substr"
@@ -193,13 +177,8 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          components: rustfmt
-          minimal: true
-          override: true
+      - uses: actions/checkout@v4
+      - uses: hecrj/setup-rust-action@v2
       - run: cargo fmt --all -- --check
 
   # Check doc reference links are all valid.
@@ -207,7 +186,7 @@ jobs:
     name: Doc check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -233,7 +212,7 @@ jobs:
             extra_rustflags: "-Zsanitizer-memory-track-origins"
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -251,17 +230,15 @@ jobs:
           cargo -Zbuild-std test --target=x86_64-unknown-linux-gnu --all-features
           cargo -Zbuild-std test --target=x86_64-unknown-linux-gnu --no-default-features
 
-  codecov:
-    name: Generate code coverage
+  codecov-tarpaulin:
+    name: coverage
     runs-on: ubuntu-latest
+    container:
+      image: xd009642/tarpaulin:develop-nightly
+      options: --security-opt seccomp=unconfined
     steps:
-      - uses: actions/checkout@v3
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - run: cargo tarpaulin --verbose --doc --all-features --all-targets --engine llvm --out xml
+      - uses: codecov/codecov-action@v4
         with:
-          toolchain: stable
-          override: true
-      - name: Run cargo-tarpaulin
-        uses: actions-rs/tarpaulin@v0.1
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v1
+          token: ${{ secrets.CODECOV_TOKEN }}
