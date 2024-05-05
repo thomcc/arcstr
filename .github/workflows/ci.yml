@@ -95,7 +95,7 @@ jobs:
           - build: ppc64
             os: ubuntu-latest
             rust: stable
-            target: powerpc64-unknown-linux-gnuabi64
+            target: powerpc64-unknown-linux-gnu
           # Requested by a user not sure if it adds anything we aren't already
           # testing but it's easy enough so *shrug*.
           - build: riscv
