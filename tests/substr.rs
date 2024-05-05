@@ -269,23 +269,23 @@ fn test_cow() {
     let cow: Cow<'_, str> = Owned("abcd".into());
     assert_eq!(Substr::from(cow), "abcd");
     let sub = ArcStr::from("XXasdfYY").substr(2..6);
-    let cow: Option<Cow<'_, str>> = Some(&sub).map(Cow::from);
+    let cow: Option<Cow<'_, str>> = Some(Cow::from(&sub));
     assert_eq!(cow.as_deref(), Some("asdf"));
 
-    let cow: Option<Cow<'_, str>> = Some(sub).map(Cow::from);
+    let cow: Option<Cow<'_, str>> = Some(Cow::from(sub));
     assert!(matches!(cow, Some(Cow::Owned(_))));
     assert_eq!(cow.as_deref(), Some("asdf"));
 
     let st = { arcstr::literal!("_static should borrow_") };
     let ss = st.substr(1..st.len() - 1);
     {
-        let cow: Option<Cow<'_, str>> = Some(ss.clone()).map(Cow::from);
+        let cow: Option<Cow<'_, str>> = Some(Cow::from(ss.clone()));
         assert!(matches!(cow, Some(Cow::Borrowed(_))));
         assert_eq!(cow.as_deref(), Some("static should borrow"));
     }
     // works with any lifetime
     {
-        let cow: Option<Cow<'static, str>> = Some(ss.clone()).map(Cow::from);
+        let cow: Option<Cow<'static, str>> = Some(Cow::from(ss.clone()));
         assert!(matches!(cow, Some(Cow::Borrowed(_))));
         assert_eq!(cow.as_deref(), Some("static should borrow"));
     }

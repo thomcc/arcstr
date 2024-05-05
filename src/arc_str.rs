@@ -863,7 +863,7 @@ impl Clone for ArcStr {
         Self(self.0)
     }
 }
-const RC_MAX: usize = (PackedFlagUint::UINT_PART_MAX / 2) as usize;
+const RC_MAX: usize = PackedFlagUint::UINT_PART_MAX / 2;
 
 impl Drop for ArcStr {
     #[inline]
