@@ -833,15 +833,6 @@ fn out_of_range(arc: &ArcStr, substr: &&str) -> ! {
 impl Clone for ArcStr {
     #[inline]
     fn clone(&self) -> Self {
-        // match Self::load_count_flag_raw(self, Ordering::Relaxed) {
-        //     // We were static
-        //     None => return Some(self.0),
-        //     Some(count) => {
-        //         if count.flag_part() {
-        //             return Some(self.0);
-        //         }
-        //     }
-        // }
         if !Self::is_static(self) {
             // From libstd's impl:
             //
@@ -860,9 +851,13 @@ impl Clone for ArcStr {
             // overflow. Technically, we could probably transition it to static
             // here, but I haven't thought it through.
             if n.uint_part() > RC_MAX && !n.flag_part() {
-                // let val = PackedFlagUint::new_raw(true, 0).encoded_value();
-                // unsafe { (*self.0.as_ptr()).count_flag.fetch_or(val, Ordering::Release) };
-                abort();
+                let val = PackedFlagUint::new_raw(true, 0).encoded_value();
+                unsafe {
+                    (*self.0.as_ptr())
+                        .count_flag
+                        .fetch_or(val, Ordering::Release)
+                };
+                // abort();
             }
         }
         Self(self.0)
@@ -1370,23 +1365,6 @@ impl core::str::FromStr for ArcStr {
     }
 }
 
-#[cold]
-#[inline(never)]
-#[cfg(not(feature = "std"))]
-fn abort() -> ! {
-    struct PanicOnDrop;
-    impl Drop for PanicOnDrop {
-        fn drop(&mut self) {
-            panic!("fatal error: second panic")
-        }
-    }
-    let _double_panicer = PanicOnDrop;
-    panic!("fatal error: aborting via double panic");
-}
-
-#[cfg(feature = "std")]
-use std::process::abort;
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1476,11 +1454,12 @@ mod loomtest {
     #[test]
     fn drop_timing() {
         loom::model(|| {
-            let a1 = (0..5)
-                .map(|i| ArcStr::from(alloc::format!("s{}", i)))
-                .cycle()
-                .take(10)
-                .collect::<alloc::vec::Vec<_>>();
+            let a1 = alloc::vec![
+                ArcStr::from("s1"),
+                ArcStr::from("s2"),
+                ArcStr::from("s3"),
+                ArcStr::from("s4"),
+            ];
             let a2 = a1.clone();
 
             let t1 = thread::spawn(move || {
