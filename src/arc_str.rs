@@ -392,7 +392,7 @@ impl ArcStr {
     /// `Self::has_static_lenflag`)
     #[inline]
     unsafe fn load_count_flag_raw(this: &Self, ord_if_needed: Ordering) -> PackedFlagUint {
-        PackedFlagUint::from_encoded(unsafe { (*this.0.as_ptr()).count_flag.load(ord_if_needed) })
+        PackedFlagUint::from_encoded((*this.0.as_ptr()).count_flag.load(ord_if_needed))
     }
 
     #[inline]
@@ -447,7 +447,7 @@ impl ArcStr {
 
     #[inline]
     unsafe fn to_static_unchecked(this: &Self) -> &'static str {
-        unsafe { &*Self::str_ptr(this) }
+        &*Self::str_ptr(this)
     }
 
     #[inline]

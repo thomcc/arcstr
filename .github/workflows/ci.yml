@@ -59,14 +59,9 @@ jobs:
           - build: win32-gnu
             os: windows-2019
             rust: stable-i686-gnu
-          # TODO: re-enable this I guess. I get inscrutable errors like
-          # `error reading from the zlib stream; class=Zlib (5)` in CI
-          # that don't repro locally, and I'm tired of getting an email
-          # about this every day.
-          #
-          # - build: msrv
-          #   os: ubuntu-latest
-          #   rust: "1.43.0"
+          - build: msrv
+            os: ubuntu-latest
+            rust: "1.57.0"
           - build: beta
             os: ubuntu-latest
             rust: beta

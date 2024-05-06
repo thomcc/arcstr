@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/thomcc/arcstr/branch/main/graph/badge.svg)](https://codecov.io/gh/thomcc/arcstr)
 [![Docs](https://docs.rs/arcstr/badge.svg)](https://docs.rs/arcstr)
 [![Latest Version](https://img.shields.io/crates/v/arcstr.svg)](https://crates.io/crates/arcstr)
-![Minimum Rust Version](https://img.shields.io/badge/MSRV%201.43-blue.svg)
+![Minimum Rust Version](https://img.shields.io/badge/MSRV%201.57-blue.svg)
 
 This crate defines `ArcStr`, a reference counted string type. It's essentially trying to be a better `Arc<str>` or `Arc<String>`, at least for most use cases.
 
