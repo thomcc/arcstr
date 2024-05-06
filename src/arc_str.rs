@@ -7,7 +7,7 @@
     clippy::redundant_slicing,
 )]
 use core::alloc::Layout;
-use core::mem::{align_of, size_of};
+use core::mem::{align_of, size_of, MaybeUninit};
 use core::ptr::NonNull;
 #[cfg(not(all(loom, test)))]
 pub(crate) use core::sync::atomic::{AtomicUsize, Ordering};
@@ -164,6 +164,136 @@ impl ArcStr {
             Some(Self(inner))
         } else {
             None
+        }
+    }
+
+    /// Attempt to allocate memory for an [`ArcStr`] of length `n`, and use the
+    /// provided callback to fully initialize the provided buffer with valid
+    /// UTF-8 text.
+    ///
+    /// This function returns `None` if memory allocation fails, see
+    /// [`ArcStr::build_unchecked`] for a version which calls
+    /// [`handle_alloc_error`](alloc::alloc::handle_alloc_error).
+    ///
+    /// # Safety
+    /// The provided `initializer` callback must fully initialize the provided
+    /// buffer with valid UTF-8 text.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    /// # use core::mem::MaybeUninit;
+    /// let arcstr = unsafe {
+    ///     ArcStr::try_build_unchecked(10, |s: &mut [MaybeUninit<u8>]| {
+    ///         s.fill(MaybeUninit::new(b'a'));
+    ///     }).unwrap()
+    /// };
+    /// assert_eq!(arcstr, "aaaaaaaaaa")
+    /// ```
+    #[inline]
+    pub unsafe fn try_build_unchecked<F>(n: usize, initializer: F) -> Option<Self>
+    where
+        F: FnOnce(&mut [MaybeUninit<u8>]),
+    {
+        if let Ok(inner) = ThinInner::try_allocate_with(n, false, AllocInit::Uninit, initializer) {
+            Some(Self(inner))
+        } else {
+            None
+        }
+    }
+
+    /// Allocate memory for an [`ArcStr`] of length `n`, and use the provided
+    /// callback to fully initialize the provided buffer with valid UTF-8 text.
+    ///
+    /// This function calls
+    /// [`handle_alloc_error`](alloc::alloc::handle_alloc_error) if memory
+    /// allocation fails, see [`ArcStr::try_build_unchecked`] for a version
+    /// which returns `None`
+    ///
+    /// # Safety
+    /// The provided `initializer` callback must fully initialize the provided
+    /// buffer with valid UTF-8 text.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    /// # use core::mem::MaybeUninit;
+    /// let arcstr = unsafe {
+    ///     ArcStr::build_unchecked(10, |s: &mut [MaybeUninit<u8>]| {
+    ///         s.fill(MaybeUninit::new(b'a'));
+    ///     })
+    /// };
+    /// assert_eq!(arcstr, "aaaaaaaaaa")
+    /// ```
+    #[inline]
+    pub unsafe fn build_unchecked<F>(n: usize, initializer: F) -> Self
+    where
+        F: FnOnce(&mut [MaybeUninit<u8>]),
+    {
+        match ThinInner::try_allocate_with(n, false, AllocInit::Uninit, initializer) {
+            Ok(inner) => Self(inner),
+            Err(None) => panic!("capacity overflow"),
+            Err(Some(layout)) => alloc::alloc::handle_alloc_error(layout),
+        }
+    }
+
+    /// Attempt to allocate memory for an [`ArcStr`] of length `n`, and use the
+    /// provided callback to initialize the provided (initially-zeroed) buffer
+    /// with valid UTF-8 text.
+    ///
+    /// Note: This function is provided with a zeroed buffer, and performs UTF-8
+    /// validation after calling the initializer. While both of these are fast
+    /// operations, some high-performance use cases will be better off using
+    /// [`ArcStr::try_build_unchecked`] as the building block.
+    ///
+    /// # Errors
+    /// The provided `initializer` callback must initialize the provided buffer
+    /// with valid UTF-8 text, or a UTF-8 error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use arcstr::ArcStr;
+    ///
+    /// let s = ArcStr::build(5, |slice| {
+    ///     slice
+    ///         .iter_mut()
+    ///         .zip(b'0'..b'5')
+    ///         .for_each(|(db, sb)| *db = sb);
+    /// }).unwrap();
+    /// assert_eq!(s, "01234");
+    /// ```
+    #[inline]
+    pub fn build<F>(n: usize, initializer: F) -> Result<Self, core::str::Utf8Error>
+    where
+        F: FnOnce(&mut [u8]),
+    {
+        let mut failed = None::<core::str::Utf8Error>;
+        let wrapper = |zeroed_slice: &mut [MaybeUninit<u8>]| {
+            debug_assert_eq!(n, zeroed_slice.len());
+            // Safety: we pass `AllocInit::Zero`, so this is actually initialized
+            let slice = unsafe {
+                core::slice::from_raw_parts_mut(zeroed_slice.as_mut_ptr().cast::<u8>(), n)
+            };
+            initializer(slice);
+            if let Err(e) = core::str::from_utf8(slice) {
+                failed = Some(e);
+            }
+        };
+        match unsafe { ThinInner::try_allocate_with(n, false, AllocInit::Zero, wrapper) } {
+            Ok(inner) => {
+                // Ensure we clean up the allocation even on error.
+                let this = Self(inner);
+                if let Some(e) = failed {
+                    Err(e)
+                } else {
+                    Ok(this)
+                }
+            }
+            Err(None) => panic!("capacity overflow"),
+            Err(Some(layout)) => alloc::alloc::handle_alloc_error(layout),
         }
     }
 
@@ -751,7 +881,8 @@ impl ArcStr {
     ///
     /// # Errors
     ///
-    /// This function returns an error if the capacity overflows
+    /// This function returns an error if the capacity overflows or allocation
+    /// fails.
     ///
     /// # Examples
     ///
@@ -771,7 +902,8 @@ impl ArcStr {
 
         // Calculate the capacity for the allocated string
         let capacity = source.len().checked_mul(n)?;
-        let inner = ThinInner::try_allocate_uninit(capacity, false).ok()?;
+        let inner =
+            ThinInner::try_allocate_maybe_uninit(capacity, false, AllocInit::Uninit).ok()?;
 
         unsafe {
             let mut data_ptr = ThinInner::data_ptr(inner);
@@ -791,7 +923,8 @@ impl ArcStr {
     ///
     /// # Panics
     ///
-    /// This function panics if the capacity overflows
+    /// This function panics if the capacity overflows, see
+    /// [`try_repeat`](ArcStr::try_repeat) if this is undesirable.
     ///
     /// # Examples
     ///
@@ -1038,13 +1171,15 @@ impl ThinInner {
         unsafe { this.as_ptr().cast::<u8>().add(OFFSET_DATA) }
     }
 
-    /// Allocates a `ThinInner` where the data segment is uninitialized
+    /// Allocates a `ThinInner` where the data segment is uninitialized or
+    /// zeroed.
     ///
     /// Returns `Err(Some(layout))` if we failed to allocate that layout, and
     /// `Err(None)` for integer overflow when computing layout
-    fn try_allocate_uninit(
+    fn try_allocate_maybe_uninit(
         capacity: usize,
         initially_static: bool,
+        init_how: AllocInit,
     ) -> Result<NonNull<Self>, Option<Layout>> {
         const ALIGN: usize = align_of::<ThinInner>();
 
@@ -1055,7 +1190,10 @@ impl ThinInner {
 
         debug_assert!(Layout::from_size_align(capacity + OFFSET_DATA, ALIGN).is_ok());
         let layout = unsafe { Layout::from_size_align_unchecked(capacity + OFFSET_DATA, ALIGN) };
-        let ptr = unsafe { alloc::alloc::alloc(layout) as *mut ThinInner };
+        let ptr = match init_how {
+            AllocInit::Uninit => unsafe { alloc::alloc::alloc(layout) as *mut ThinInner },
+            AllocInit::Zero => unsafe { alloc::alloc::alloc_zeroed(layout) as *mut ThinInner },
+        };
         if ptr.is_null() {
             return Err(Some(layout));
         }
@@ -1087,14 +1225,47 @@ impl ThinInner {
     // `Err(None)` for integer overflow when computing layout.
     #[inline]
     fn try_allocate(data: &str, initially_static: bool) -> Result<NonNull<Self>, Option<Layout>> {
-        // Allocate a enough space to hold the given string
-        let uninit = Self::try_allocate_uninit(data.len(), initially_static)?;
-
-        // Copy the given string into the allocation
-        unsafe { core::ptr::copy_nonoverlapping(data.as_ptr(), Self::data_ptr(uninit), data.len()) }
-
-        Ok(uninit)
+        // Safety: we initialize the whole buffer by copying `data` into it.
+        unsafe {
+            // Allocate a enough space to hold the given string
+            Self::try_allocate_with(
+                data.len(),
+                initially_static,
+                AllocInit::Uninit,
+                // Copy the given string into the allocation
+                |uninit_slice| {
+                    debug_assert_eq!(uninit_slice.len(), data.len());
+                    core::ptr::copy_nonoverlapping(
+                        data.as_ptr(),
+                        uninit_slice.as_mut_ptr().cast::<u8>(),
+                        data.len(),
+                    )
+                },
+            )
+        }
     }
+
+    /// Safety: caller must fully initialize the provided buffer with valid
+    /// UTF-8 in the `initializer` function (well, you at least need to handle
+    /// it before giving it back to the user).
+    #[inline]
+    unsafe fn try_allocate_with(
+        len: usize,
+        initially_static: bool,
+        init_style: AllocInit,
+        initializer: impl FnOnce(&mut [core::mem::MaybeUninit<u8>]),
+    ) -> Result<NonNull<Self>, Option<Layout>> {
+        // Allocate a enough space to hold the given string
+        let this = Self::try_allocate_maybe_uninit(len, initially_static, init_style)?;
+
+        initializer(core::slice::from_raw_parts_mut(
+            Self::data_ptr(this).cast::<MaybeUninit<u8>>(),
+            len,
+        ));
+
+        Ok(this)
+    }
+
     #[inline]
     unsafe fn get_len_flag(p: *const ThinInner) -> PackedFlagUint {
         debug_assert_eq!(OFFSET_LENFLAGS, 0);
@@ -1113,6 +1284,12 @@ impl ThinInner {
         };
         alloc::alloc::dealloc(p as *mut _, layout);
     }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum AllocInit {
+    Uninit,
+    Zero,
 }
 
 #[inline(never)]
