@@ -1366,45 +1366,46 @@ impl core::str::FromStr for ArcStr {
 }
 
 #[cfg(test)]
+#[cfg(not(msrv))] // core::mem::offset_of! isn't stable in our MSRV
 mod test {
     use super::*;
 
     fn sasi_layout_check<Buf>() {
         assert!(align_of::<StaticArcStrInner<Buf>>() >= 8);
         assert_eq!(
-            memoffset::offset_of!(StaticArcStrInner<Buf>, count_flag),
+            core::mem::offset_of!(StaticArcStrInner<Buf>, count_flag),
             OFFSET_COUNTFLAGS
         );
         assert_eq!(
-            memoffset::offset_of!(StaticArcStrInner<Buf>, len_flag),
+            core::mem::offset_of!(StaticArcStrInner<Buf>, len_flag),
             OFFSET_LENFLAGS
         );
         assert_eq!(
-            memoffset::offset_of!(StaticArcStrInner<Buf>, data),
+            core::mem::offset_of!(StaticArcStrInner<Buf>, data),
             OFFSET_DATA
         );
         assert_eq!(
-            memoffset::offset_of!(ThinInner, count_flag),
-            memoffset::offset_of!(StaticArcStrInner::<Buf>, count_flag),
+            core::mem::offset_of!(ThinInner, count_flag),
+            core::mem::offset_of!(StaticArcStrInner::<Buf>, count_flag),
         );
         assert_eq!(
-            memoffset::offset_of!(ThinInner, len_flag),
-            memoffset::offset_of!(StaticArcStrInner::<Buf>, len_flag),
+            core::mem::offset_of!(ThinInner, len_flag),
+            core::mem::offset_of!(StaticArcStrInner::<Buf>, len_flag),
         );
         assert_eq!(
-            memoffset::offset_of!(ThinInner, data),
-            memoffset::offset_of!(StaticArcStrInner::<Buf>, data),
+            core::mem::offset_of!(ThinInner, data),
+            core::mem::offset_of!(StaticArcStrInner::<Buf>, data),
         );
     }
 
     #[test]
     fn verify_type_pun_offsets_sasi_big_bufs() {
         assert_eq!(
-            memoffset::offset_of!(ThinInner, count_flag),
+            core::mem::offset_of!(ThinInner, count_flag),
             OFFSET_COUNTFLAGS,
         );
-        assert_eq!(memoffset::offset_of!(ThinInner, len_flag), OFFSET_LENFLAGS);
-        assert_eq!(memoffset::offset_of!(ThinInner, data), OFFSET_DATA);
+        assert_eq!(core::mem::offset_of!(ThinInner, len_flag), OFFSET_LENFLAGS);
+        assert_eq!(core::mem::offset_of!(ThinInner, data), OFFSET_DATA);
 
         assert!(align_of::<ThinInner>() >= 8);
 
