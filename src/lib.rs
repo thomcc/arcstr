@@ -64,6 +64,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
 #![allow(unknown_lints)]
+// for `cfg(loom)` and such -- I don't want to add a build.rs for this.
+#![allow(unexpected_cfgs)]
 
 #[doc(hidden)]
 pub extern crate alloc;
