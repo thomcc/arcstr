@@ -42,7 +42,11 @@ macro_rules! literal {
                     count_flag: $crate::_private::StaticArcStrInner::<[$crate::_private::u8; __TEXT.len()]>::STATIC_COUNT_VALUE,
                     // See comment for `_private::ConstPtrDeref` for what the hell's
                     // going on here.
-                    data: __TEXT.as_ptr().cast::<[$crate::_private::u8; __TEXT.len()]>().read(),
+                    data: *$crate::_private::ConstPtrDeref::<[$crate::_private::u8; __TEXT.len()]> {
+                        p: __TEXT.as_ptr(),
+                    }
+                    .a,
+                    // data: __TEXT.as_ptr().cast::<[$crate::_private::u8; __TEXT.len()]>().read(),
                 }
             };
             #[allow(clippy::declare_interior_mutable_const)]
