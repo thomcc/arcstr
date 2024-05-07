@@ -1,2 +1,0 @@
-# This is the `ArcStr::leak` example doctest
-leak:test_leaking
