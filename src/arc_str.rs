@@ -537,27 +537,44 @@ impl ArcStr {
         }
     }
 
-    /// Convert the `ArcStr` into a `'static` `ArcStr`, even if it was
-    /// originally created from runtime values.
+    /// Convert the `ArcStr` into a "static" `ArcStr`, even if it was originally
+    /// created from runtime values. The `&'static str` is returned.
     ///
-    /// This is useful
+    /// This is useful if you want to use [`ArcStr::as_static`] or
+    /// [`ArcStr::is_static`] on a value only known at runtime.
     ///
-    /// If the `ArcStr` is already static, then
+    /// If the `ArcStr` is already static, then this is a noop.
+    ///
+    /// # Caveats
+    /// Calling this function on an ArcStr will cause us to never free it, thus
+    /// leaking it's memory. Doing this excessively can lead to problems.
+    ///
+    /// # Examples
+    /// ```
+    /// # use arcstr::ArcStr;
+    /// let s = ArcStr::from("foobar");
+    /// assert!(!ArcStr::is_static(&s));
+    /// assert!(ArcStr::as_static(&s).is_none());
+    ///
+    /// let leaked: &'static str = s.leak();
+    /// assert!(ArcStr::is_static(&s));
+    /// assert_eq!(ArcStr::as_static(&s), Some("foobar"));
+    /// ```
     #[inline]
-    pub fn leak(this: &Self) -> &'static str {
-        if Self::has_static_lenflag(this) {
-            return unsafe { Self::to_static_unchecked(this) };
+    pub fn leak(&self) -> &'static str {
+        if Self::has_static_lenflag(self) {
+            return unsafe { Self::to_static_unchecked(self) };
         }
         let is_static_count = unsafe {
             // Not sure about ordering, maybe relaxed would be fine.
-            Self::load_count_flag_raw(this, Ordering::Acquire)
+            Self::load_count_flag_raw(self, Ordering::Acquire)
         };
         if is_static_count.flag_part() {
-            return unsafe { Self::to_static_unchecked(this) };
+            return unsafe { Self::to_static_unchecked(self) };
         }
-        unsafe { Self::become_static(this, is_static_count.uint_part() == 1) };
-        debug_assert!(Self::is_static(this));
-        unsafe { Self::to_static_unchecked(this) }
+        unsafe { Self::become_static(self, is_static_count.uint_part() == 1) };
+        debug_assert!(Self::is_static(self));
+        unsafe { Self::to_static_unchecked(self) }
     }
 
     unsafe fn become_static(this: &Self, is_unique: bool) {
