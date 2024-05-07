@@ -353,3 +353,15 @@ fn repeat_string() {
 fn repeat_string_panics() {
     ArcStr::repeat("AAA", usize::MAX);
 }
+
+#[test]
+fn test_leaking() {
+    let s = ArcStr::from("foobar");
+    assert!(!ArcStr::is_static(&s));
+    assert!(ArcStr::as_static(&s).is_none());
+
+    let leaked: &'static str = s.leak();
+    assert_eq!(leaked, s);
+    assert!(ArcStr::is_static(&s));
+    assert_eq!(ArcStr::as_static(&s), Some("foobar"));
+}

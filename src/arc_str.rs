@@ -550,20 +550,19 @@ impl ArcStr {
     /// leaking it's memory. Doing this excessively can lead to problems.
     ///
     /// # Examples
-    /// ```
-    /// # // Wrap this in a function so that we can suppress
-    /// # // only this leak in the asan tests
-    /// # fn function_that_leaks() {
+    /// ```no_run
+    /// # // This isn't run because it needs a leakcheck suppression,
+    /// # // which I can't seem to make work in CI (no symbols for
+    /// # // doctests?). Instead, we test this in tests/arc_str.rs
     /// # use arcstr::ArcStr;
     /// let s = ArcStr::from("foobar");
     /// assert!(!ArcStr::is_static(&s));
     /// assert!(ArcStr::as_static(&s).is_none());
     ///
     /// let leaked: &'static str = s.leak();
+    /// assert_eq!(leaked, s);
     /// assert!(ArcStr::is_static(&s));
     /// assert_eq!(ArcStr::as_static(&s), Some("foobar"));
-    /// # }
-    /// # function_that_leaks()
     /// ```
     #[inline]
     pub fn leak(&self) -> &'static str {

@@ -1,2 +1,2 @@
 # This is the `ArcStr::leak` example doctest
-leak:function_that_leaks
+leak:test_leaking
