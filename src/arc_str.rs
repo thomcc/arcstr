@@ -172,7 +172,7 @@ impl ArcStr {
     /// UTF-8 text.
     ///
     /// This function returns `None` if memory allocation fails, see
-    /// [`ArcStr::build_unchecked`] for a version which calls
+    /// [`ArcStr::init_with_unchecked`] for a version which calls
     /// [`handle_alloc_error`](alloc::alloc::handle_alloc_error).
     ///
     /// # Safety
@@ -185,14 +185,14 @@ impl ArcStr {
     /// # use arcstr::ArcStr;
     /// # use core::mem::MaybeUninit;
     /// let arcstr = unsafe {
-    ///     ArcStr::try_build_unchecked(10, |s: &mut [MaybeUninit<u8>]| {
+    ///     ArcStr::try_init_with_unchecked(10, |s: &mut [MaybeUninit<u8>]| {
     ///         s.fill(MaybeUninit::new(b'a'));
     ///     }).unwrap()
     /// };
     /// assert_eq!(arcstr, "aaaaaaaaaa")
     /// ```
     #[inline]
-    pub unsafe fn try_build_unchecked<F>(n: usize, initializer: F) -> Option<Self>
+    pub unsafe fn try_init_with_unchecked<F>(n: usize, initializer: F) -> Option<Self>
     where
         F: FnOnce(&mut [MaybeUninit<u8>]),
     {
@@ -208,7 +208,7 @@ impl ArcStr {
     ///
     /// This function calls
     /// [`handle_alloc_error`](alloc::alloc::handle_alloc_error) if memory
-    /// allocation fails, see [`ArcStr::try_build_unchecked`] for a version
+    /// allocation fails, see [`ArcStr::try_init_with_unchecked`] for a version
     /// which returns `None`
     ///
     /// # Safety
@@ -221,14 +221,14 @@ impl ArcStr {
     /// # use arcstr::ArcStr;
     /// # use core::mem::MaybeUninit;
     /// let arcstr = unsafe {
-    ///     ArcStr::build_unchecked(10, |s: &mut [MaybeUninit<u8>]| {
+    ///     ArcStr::init_with_unchecked(10, |s: &mut [MaybeUninit<u8>]| {
     ///         s.fill(MaybeUninit::new(b'a'));
     ///     })
     /// };
     /// assert_eq!(arcstr, "aaaaaaaaaa")
     /// ```
     #[inline]
-    pub unsafe fn build_unchecked<F>(n: usize, initializer: F) -> Self
+    pub unsafe fn init_with_unchecked<F>(n: usize, initializer: F) -> Self
     where
         F: FnOnce(&mut [MaybeUninit<u8>]),
     {
@@ -246,7 +246,7 @@ impl ArcStr {
     /// Note: This function is provided with a zeroed buffer, and performs UTF-8
     /// validation after calling the initializer. While both of these are fast
     /// operations, some high-performance use cases will be better off using
-    /// [`ArcStr::try_build_unchecked`] as the building block.
+    /// [`ArcStr::try_init_with_unchecked`] as the building block.
     ///
     /// # Errors
     /// The provided `initializer` callback must initialize the provided buffer
@@ -257,7 +257,7 @@ impl ArcStr {
     /// ```
     /// # use arcstr::ArcStr;
     ///
-    /// let s = ArcStr::build(5, |slice| {
+    /// let s = ArcStr::init_with(5, |slice| {
     ///     slice
     ///         .iter_mut()
     ///         .zip(b'0'..b'5')
@@ -266,7 +266,7 @@ impl ArcStr {
     /// assert_eq!(s, "01234");
     /// ```
     #[inline]
-    pub fn build<F>(n: usize, initializer: F) -> Result<Self, core::str::Utf8Error>
+    pub fn init_with<F>(n: usize, initializer: F) -> Result<Self, core::str::Utf8Error>
     where
         F: FnOnce(&mut [u8]),
     {
