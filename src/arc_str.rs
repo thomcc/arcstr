@@ -551,6 +551,9 @@ impl ArcStr {
     ///
     /// # Examples
     /// ```
+    /// # // Wrap this in a function so that we can suppress
+    /// # // only this leak in the asan tests
+    /// # fn function_that_leaks() {
     /// # use arcstr::ArcStr;
     /// let s = ArcStr::from("foobar");
     /// assert!(!ArcStr::is_static(&s));
@@ -559,6 +562,8 @@ impl ArcStr {
     /// let leaked: &'static str = s.leak();
     /// assert!(ArcStr::is_static(&s));
     /// assert_eq!(ArcStr::as_static(&s), Some("foobar"));
+    /// # }
+    /// # function_that_leaks()
     /// ```
     #[inline]
     pub fn leak(&self) -> &'static str {
