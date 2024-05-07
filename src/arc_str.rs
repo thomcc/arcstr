@@ -1678,4 +1678,20 @@ mod loomtest {
             t2.join().unwrap();
         });
     }
+
+    #[test]
+    fn leak_drop() {
+        loom::model(|| {
+            let a1 = ArcStr::from("foo");
+            let a2 = a1.clone();
+
+            let t1 = thread::spawn(move || {
+                drop(a1);
+            });
+            let t2 = thread::spawn(move || a2.leak());
+            t1.join().unwrap();
+            let leaked: &'static str = t2.join().unwrap();
+            assert_eq!(leaked, "foo");
+        });
+    }
 }
