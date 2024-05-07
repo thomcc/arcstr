@@ -4,6 +4,7 @@
     // yep, we create owned instance just for comparison, to test comparison
     // with owned instacnces.
     clippy::cmp_owned,
+    unexpected_cfgs,
 )]
 use arcstr::ArcStr;
 
@@ -355,6 +356,8 @@ fn repeat_string_panics() {
 }
 
 #[test]
+#[allow(unknown_lints)]
+#[cfg_attr(asan, ignore)] // Leaks memory intentionally
 fn test_leaking() {
     let s = ArcStr::from("foobar");
     assert!(!ArcStr::is_static(&s));

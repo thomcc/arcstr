@@ -194,6 +194,9 @@ jobs:
         include:
           - sanitizer: memory
             extra_rustflags: "-Zsanitizer-memory-track-origins"
+          - sanitizer: address
+            # to disable the ArcStr::leak test (can't get suppressions to work in CI)
+            extra_rustflags: "--cfg=asan"
 
     steps:
       - uses: actions/checkout@v4
