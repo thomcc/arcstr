@@ -142,6 +142,9 @@ jobs:
   miri:
     name: Miri
     runs-on: ubuntu-latest
+    env:
+      # the tests for `ArcStr::leak` intentionally leak memory.
+      MIRIFLAGS: -Zmiri-ignore-leaks
     steps:
       - uses: actions/checkout@v4
       - uses: hecrj/setup-rust-action@v2
@@ -181,6 +184,7 @@ jobs:
       RUST_BACKTRACE: 0
       # only used by asan, but we set it for all of them cuz its easy
       ASAN_OPTIONS: detect_stack_use_after_return=1
+      LSAN_OPTIONS: "suppressions=lsan_suppressions.txt"
     strategy:
       fail-fast: false
       matrix:
