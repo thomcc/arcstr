@@ -494,23 +494,23 @@ impl ArcStr {
     /// ```
     /// # use arcstr::ArcStr;
     /// let foobar = ArcStr::from("foobar");
-    /// assert_eq!(Some(1), ArcStr::strong_count(&foobar));
+    /// assert_eq!(Some(1), foobar.strong_count());
     /// let also_foobar = ArcStr::clone(&foobar);
-    /// assert_eq!(Some(2), ArcStr::strong_count(&foobar));
-    /// assert_eq!(Some(2), ArcStr::strong_count(&also_foobar));
+    /// assert_eq!(Some(2), foobar.strong_count());
+    /// assert_eq!(Some(2), also_foobar.strong_count());
     /// ```
     ///
     /// ### Static ArcStr
     /// ```
     /// # use arcstr::ArcStr;
     /// let baz = arcstr::literal!("baz");
-    /// assert_eq!(None, ArcStr::strong_count(&baz));
+    /// assert_eq!(None, baz.strong_count());
     /// // Similarly:
-    /// assert_eq!(None, ArcStr::strong_count(&ArcStr::default()));
+    /// assert_eq!(None, ArcStr::default().string_count());
     /// ```
     #[inline]
-    pub fn strong_count(this: &Self) -> Option<usize> {
-        let cf = Self::load_count_flag(this, Ordering::Acquire)?;
+    pub fn strong_count(&self) -> Option<usize> {
+        let cf = Self::load_count_flag(self, Ordering::Acquire)?;
         if cf.flag_part() {
             None
         } else {
@@ -556,13 +556,13 @@ impl ArcStr {
     /// # // doctests?). Instead, we test this in tests/arc_str.rs
     /// # use arcstr::ArcStr;
     /// let s = ArcStr::from("foobar");
-    /// assert!(!ArcStr::is_static(&s));
-    /// assert!(ArcStr::as_static(&s).is_none());
+    /// assert!(!s.is_static());
+    /// assert!(s.as_static().is_none());
     ///
     /// let leaked: &'static str = s.leak();
     /// assert_eq!(leaked, s);
-    /// assert!(ArcStr::is_static(&s));
-    /// assert_eq!(ArcStr::as_static(&s), Some("foobar"));
+    /// assert!(s.is_static());
+    /// assert_eq!(s.as_static(), Some("foobar"));
     /// ```
     #[inline]
     pub fn leak(&self) -> &'static str {
@@ -617,33 +617,36 @@ impl ArcStr {
         Self::bytes_ptr(this) as *const str
     }
 
-    /// Returns true if `this` is a "static" ArcStr. For example, if it was
-    /// created from a call to [`arcstr::literal!`][crate::literal]),
-    /// returned by `ArcStr::new`, etc.
+    /// Returns true if `self` is a "static" ArcStr. For example, if it was
+    /// created from a call to [`arcstr::literal!`][crate::literal]), returned
+    /// by [`ArcStr::new`], previously leaked with [`ArcStr::leak`], etc.
     ///
     /// Static `ArcStr`s can be converted to `&'static str` for free using
-    /// [`ArcStr::as_static`], without leaking memory — they're static constants
-    /// in the program (somewhere).
+    /// [`ArcStr::as_static`], without leaking memory — they're either static
+    /// constants in the program, or they're strings which have already been
+    /// deliberately leaked earlier (via [`ArcStr::leak`]).
+    ///
+    /// This function is morally equivalent to `self.as_static().is_some()`.
     ///
     /// # Examples
     ///
     /// ```
     /// # use arcstr::ArcStr;
     /// const STATIC: ArcStr = arcstr::literal!("Electricity!");
-    /// assert!(ArcStr::is_static(&STATIC));
+    /// assert!(STATIC.is_static());
     ///
     /// let still_static = arcstr::literal!("Shocking!");
-    /// assert!(ArcStr::is_static(&still_static));
+    /// assert!(still_static.is_static());
     /// assert!(
-    ///     ArcStr::is_static(&still_static.clone()),
+    ///     still_static.is_static().clone()),
     ///     "Cloned statics are still static"
     /// );
     ///
     /// let nonstatic = ArcStr::from("Grounded...");
-    /// assert!(!ArcStr::is_static(&nonstatic));
+    /// assert!(!nonstatic.is_static());
     /// ```
     #[inline]
-    pub fn is_static(this: &Self) -> bool {
+    pub fn is_static(&self) -> bool {
         // We align this to 16 bytes and keep the `is_static` flags in the same
         // place. In theory this means that if `cfg(target_feature = "avx")`
         // (where aligned 16byte loads are atomic), the compiler *could*
@@ -661,8 +664,8 @@ impl ArcStr {
         // since Rust's semantics don't allow me to make that change
         // optimization on my own (that load isn't considered atomic, for
         // example).
-        this.get_inner_len_flag().flag_part()
-            || unsafe { Self::load_count_flag_raw(this, Ordering::Relaxed).flag_part() }
+        self.get_inner_len_flag().flag_part()
+            || unsafe { Self::load_count_flag_raw(self, Ordering::Relaxed).flag_part() }
     }
 
     /// This is true for any `ArcStr` that has been static from the time when it
@@ -672,13 +675,10 @@ impl ArcStr {
         this.get_inner_len_flag().flag_part()
     }
 
-    /// Returns true if `this` is a "static"/`"literal"` ArcStr. For example, if
-    /// it was created from a call to [`literal!`][crate::literal]), returned by
-    /// `ArcStr::new`, etc.
-    ///
-    /// Static `ArcStr`s can be converted to `&'static str` for free using
-    /// [`ArcStr::as_static`], without leaking memory — they're static constants
-    /// in the program (somewhere).
+    /// Returns `Some` of the string data as a `&'static str` if `self` is a
+    /// "static" ArcStr. For example, if it was created from a call to
+    /// [`literal!`][crate::literal]), returned by [`ArcStr::new`], previously
+    /// leaked with [`ArcStr::leak`], etc.
     ///
     /// # Examples
     ///
@@ -698,10 +698,10 @@ impl ArcStr {
     /// assert_eq!(ArcStr::as_static(&nonstatic), None);
     /// ```
     #[inline]
-    pub fn as_static(this: &Self) -> Option<&'static str> {
-        if Self::is_static(this) {
+    pub fn as_static(&self) -> Option<&'static str> {
+        if Self::is_static(self) {
             // We know static strings live forever, so they can have a static lifetime.
-            Some(unsafe { &*(this.as_str() as *const str) })
+            Some(unsafe { &*(self.as_str() as *const str) })
         } else {
             None
         }
