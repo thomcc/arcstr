@@ -18,6 +18,7 @@ categories = [
 repository = "https://github.com/thomcc/arcstr"
 documentation = "https://docs.rs/arcstr"
 homepage = "https://github.com/thomcc/arcstr"
+include = ["src/**/*", "LICENSE-*", "README.md"]
 
 [features]
 std = []
