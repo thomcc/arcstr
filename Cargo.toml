@@ -1,6 +1,6 @@
 [package]
 name = "arcstr"
-version = "1.1.5"
+version = "1.2.0"
 rust-version = "1.57.0"
 authors = ["Thom Chiovoloni <chiovolonit@gmail.com>"]
 edition = "2021"
