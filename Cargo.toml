@@ -26,6 +26,9 @@ default = ["substr"]
 substr = []
 substr-usize-indices = ["substr"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom, msrv)'] }
+
 [dependencies]
 serde = { version = "1", default-features = false, optional = true }
 
