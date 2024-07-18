@@ -68,7 +68,7 @@ The following cargo features are available. Only `substr` is on by default curre
 
     Essentially, there's one case we need to abort, and that's during a catastrophic error where you leak the same (dynamic) `ArcStr` 2^31 on 32-bit systems, or 2^63 in 64-bit systems. If this happens, we follow `libstd`'s lead and just abort because we're hosed anyway. If `std` is enabled, we use the real `std::process::abort`. If `std` is not enabled, we trigger an `abort` by triggering a panic while another panic is unwinding, which is either defined to cause an abort, or causes one in practice.
 
-    In pratice you will never hit this edge case, and it still works in no_std, so no_std is the default. If you have to turn this on, because you hit this ridiculous case and found our handling bad, let me know.
+    In practice you will never hit this edge case, and it still works in no_std, so no_std is the default. If you have to turn this on, because you hit this ridiculous case and found our handling bad, let me know.
 
     Concretely, the difference here is that without this, this case becomes a call to `core::intrinsics::abort`, and not `std::process::abort`. It's a ridiculously unlikely edge case to hit, but if you are to hit it, `std::process::abort` results in a `SIGABRT` whereas `core::intrinsics::abort` results in a `SIGILL`, and the former has meaningfully better UX. That said, it's extraordinarially unlikely that you manage to leak `2^31` or `2^63` copies of the same `ArcStr`, so it's not really worth depending on `std` by default for in our opinion.
 
