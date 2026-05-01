@@ -9,10 +9,10 @@
 use core::alloc::Layout;
 use core::mem::{align_of, size_of, MaybeUninit};
 use core::ptr::NonNull;
-#[cfg(not(all(loom, test)))]
-pub(crate) use core::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(all(loom, test))]
 pub(crate) use loom::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(not(all(loom, test)))]
+pub(crate) use portable_atomic::{AtomicUsize, Ordering};
 
 #[cfg(feature = "substr")]
 use crate::Substr;
@@ -1378,6 +1378,7 @@ impl From<ArcStr> for alloc::rc::Rc<str> {
         s.as_str().into()
     }
 }
+#[cfg(all(not(no_rc), not(no_sync), target_has_atomic = "ptr"))]
 impl From<ArcStr> for alloc::sync::Arc<str> {
     #[inline]
     fn from(s: ArcStr) -> Self {
@@ -1390,6 +1391,7 @@ impl From<alloc::rc::Rc<str>> for ArcStr {
         Self::from(&*s)
     }
 }
+#[cfg(all(not(no_rc), not(no_sync), target_has_atomic = "ptr"))]
 impl From<alloc::sync::Arc<str>> for ArcStr {
     #[inline]
     fn from(s: alloc::sync::Arc<str>) -> Self {
@@ -1480,6 +1482,7 @@ macro_rules! impl_peq {
     )+};
 }
 
+#[cfg(all(not(no_rc), not(no_sync), target_has_atomic = "ptr"))]
 impl_peq! {
     (ArcStr, str),
     (ArcStr, &'a str),
@@ -1489,6 +1492,17 @@ impl_peq! {
     (ArcStr, alloc::sync::Arc<str>),
     (ArcStr, alloc::rc::Rc<str>),
     (ArcStr, alloc::sync::Arc<String>),
+    (ArcStr, alloc::rc::Rc<String>),
+}
+
+#[cfg(not(all(not(no_rc), not(no_sync), target_has_atomic = "ptr")))]
+impl_peq! {
+    (ArcStr, str),
+    (ArcStr, &'a str),
+    (ArcStr, String),
+    (ArcStr, Cow<'a, str>),
+    (ArcStr, Box<str>),
+    (ArcStr, alloc::rc::Rc<str>),
     (ArcStr, alloc::rc::Rc<String>),
 }
 

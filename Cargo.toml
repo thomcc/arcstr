@@ -21,12 +21,13 @@ homepage = "https://github.com/thomcc/arcstr"
 include = ["src/**/*", "LICENSE-*", "README.md"]
 
 [features]
-std = []
+std = ["portable-atomic/std"]
 default = ["substr"]
 substr = []
 substr-usize-indices = ["substr"]
 
 [dependencies]
+portable-atomic = { version = "1", default-features = false }
 serde = { version = "1", default-features = false, optional = true }
 
 [dev-dependencies]
